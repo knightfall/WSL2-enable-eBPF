@@ -11,6 +11,12 @@ The [configuration fragment](ebpf-kernel.config) pins this project's requested
 profile. [KERNEL_CONFIG_EXPLAINED.md](KERNEL_CONFIG_EXPLAINED.md) explains the
 options. Kernel support alone does not install or configure these applications.
 
+For repository navigation and indexing, start with [AGENTS.md](AGENTS.md),
+[the repository map](docs/REPOSITORY_MAP.md), or [llms.txt](llms.txt). A generated
+[full documentation bundle](llms-full.txt) is available for single-file ingestion.
+These guides keep the upstream kernel tree and local build artifacts outside
+the default project index.
+
 ## Scope and verification status
 
 | Component | Baseline / status |
@@ -313,9 +319,13 @@ example, the 6.6 baseline cannot supply features requiring kernel 6.8 or newer.
 
 ```bash
 python3 -m unittest discover -s tests -v
+python3 scripts/build-llms.py --check
 python3 scripts/check-links.py
 for script in scripts/*.sh; do bash -n "$script"; done
 ```
+
+After editing documentation, run `python3 scripts/build-llms.py` to regenerate
+the bundle. CI checks for stale bundle content and broken local navigation links.
 
 [Configuration CI](.github/workflows/validate.yml) also runs ShellCheck, parses
 Compose, fetches the pinned source, merges the fragment, resolves Kconfig on

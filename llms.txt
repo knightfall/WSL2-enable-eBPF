@@ -1,0 +1,34 @@
+# WSL2-enable-eBPF
+
+> A pinned x86-64 WSL2 kernel profile and build guide for eBPF observability,
+> enforcement, and container networking, with validation and upstream update tooling.
+
+Read the agent guide and repository map first. Source code and the source lock
+are authoritative. Linux configuration validation, kernel compilation, WSL boot,
+and workload validation are separate checks. Relative links refer to this same
+repository revision. Exclude the upstream kernel submodule, Git metadata, caches,
+build artifacts, and local environment files from default indexing.
+
+## Documentation
+
+- [Agent guide](AGENTS.md): editing rules, indexing boundaries, source/configuration invariants, and verification commands.
+- [Repository map](docs/REPOSITORY_MAP.md): file responsibilities, build/update flows, and investigation entry points.
+- [Setup guide](README.md): prerequisites, pinned source initialization, build/install, rollback, and runtime/workload checks.
+- [Kernel option reference](KERNEL_CONFIG_EXPLAINED.md): requested kernel symbols, dependencies, and upstream references.
+
+## Source and automation
+
+- [Source lock](kernel-version.env): current release, immutable commit, and upstream URL.
+- [Submodule declaration](.gitmodules): registered upstream source path and tracking series.
+- [Kernel profile](ebpf-kernel.config): requested eBPF, enforcement, networking, and container options.
+- [Configuration validation](scripts/check-config.py): required-value and LSM checks.
+- [Stable release updater](scripts/update-kernel.py): same-series numeric tag selection and source-pin updates.
+- [Validation workflow](.github/workflows/validate.yml): local checks and Linux Kconfig resolution.
+- [Scheduled updater](.github/workflows/update-kernel.yml): weekly/manual checks and validated update pull requests.
+- [OBI Compose example](examples/compose.yaml): Docker Engine inside WSL and an optional HTTP smoke workload.
+
+## Optional
+
+- [Complete documentation bundle](llms-full.txt): generated project docs in one file; use instead of indexing the same pages twice.
+- [Config regression tests](tests/test_check_config.py): missing/disabled options, LSM activation, and input validation.
+- [Release selection tests](tests/test_update_kernel.py): stable-series boundaries, numeric ordering, peeled tags, and immutable pins.

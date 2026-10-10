@@ -64,7 +64,7 @@ writing `CONFIG_DEBUG_INFO=y` alone cannot override a `DEBUG_INFO_NONE` choice.
 - [Medium: Building the Linux kernel with BTF](https://medium.com/@suruti94/building-the-linux-kernel-with-btf-1a617cfb4a24)
 
 ### `CONFIG_DEBUG_INFO_BTF`
-Generates the **vmlinux BTF blob** — a compact, deduplicated type description of the entire kernel. The standard location is `/sys/kernel/btf/vmlinux`. 
+Generates the **vmlinux BTF blob** — a compact, deduplicated type description of the entire kernel. The standard location is `/sys/kernel/btf/vmlinux`.
 This is the cornerstone of CO-RE: tools like `bpftool`, Tetragon, Cilium, and OBI read it at startup to resolve struct offsets without needing kernel headers or source code.
 - [Kernel docs: BTF](https://www.kernel.org/doc/html/latest/bpf/btf.html)
 - [CO-RE reference guide — Andrii Nakryiko](https://nakryiko.com/posts/bpf-core-reference-guide/)
@@ -350,7 +350,14 @@ The **TPROXY xtables target** — redirects a packet to a local socket without c
 
 ### `CONFIG_NETFILTER_XT_TARGET_CT`
 The **`CT` xtables target** — allows explicit manipulation of conntrack entries (set zone, helper, status flags). Used by some Cilium configurations to assign conntrack zones per interface.
+It depends on `IP_NF_RAW || IP6_NF_RAW`. This profile sets both raw-table
+options to `y` so Kconfig can keep the requested CT target built in.
 - [iptables-extensions: CT](https://man7.org/linux/man-pages/man8/iptables-extensions.8.html)
+
+### `CONFIG_IP_NF_RAW` / `CONFIG_IP6_NF_RAW`
+Enable the IPv4 and IPv6 raw tables for rules evaluated before normal connection
+tracking. These supply the parent dependency for the built-in CT target and are
+also used by NOTRACK/TRACE configurations.
 
 ---
 
