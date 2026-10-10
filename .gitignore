@@ -1,0 +1,4 @@
+/kernel-release.txt
+__pycache__/
+*.pyc
+/examples/.env

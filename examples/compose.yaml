@@ -1,0 +1,48 @@
+# Docker Engine running inside the same WSL2 distro as the target workloads.
+services:
+  obi:
+    image: ${OBI_IMAGE:?Set OBI_IMAGE to a versioned OBI image}
+    pid: host
+    network_mode: host
+    cap_add:
+      - BPF
+      - PERFMON
+      - DAC_READ_SEARCH
+      - CHECKPOINT_RESTORE
+      - SYS_PTRACE
+      - NET_RAW
+      - NET_ADMIN
+      - SYS_ADMIN
+    security_opt:
+      - apparmor:unconfined
+      - seccomp:unconfined
+    volumes:
+      # Mount these filesystems on the daemon host before starting Compose.
+      # Existing bpffs contents are visible through a normal bind mount.
+      - type: bind
+        source: /sys/fs/bpf
+        target: /sys/fs/bpf
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /sys/kernel/tracing
+        target: /sys/kernel/tracing
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /sys/fs/cgroup
+        target: /sys/fs/cgroup
+        bind:
+          create_host_path: false
+    environment:
+      OTEL_EBPF_OPEN_PORT: ${SERVICE_PORT:-8080}
+      OTEL_EBPF_TRACE_PRINTER: text
+      OTEL_EBPF_ENFORCE_SYS_CAPS: "1"
+
+  # Optional target for the documented HTTP tracing smoke check.
+  demo:
+    profiles: [demo]
+    image: python:3.12-slim
+    command: [python, -m, http.server, "8080", --bind, 0.0.0.0]
+    ports:
+      - "127.0.0.1:18080:8080"

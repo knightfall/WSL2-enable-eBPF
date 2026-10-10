@@ -1,0 +1,32 @@
+name: Validate kernel configuration
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  configuration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build and validation dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential flex bison dwarves libssl-dev libelf-dev cpio qemu-utils rsync python3 shellcheck
+      - name: Check scripts, links, and validator regressions
+        run: scripts/validate-repository.sh
+      - name: Fetch immutable kernel source
+        run: scripts/prepare-kernel.sh
+      - name: Merge and resolve the x86-64 kernel configuration
+        run: scripts/configure-kernel.sh
+      - name: Keep resolved configuration for review
+        uses: actions/upload-artifact@v4
+        with:
+          name: resolved-kernel-config
+          path: WSL2-Linux-Kernel/.config
+          include-hidden-files: true

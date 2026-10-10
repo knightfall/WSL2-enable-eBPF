@@ -3,6 +3,12 @@
 This document explains every option in `ebpf-kernel.config`, grouped by the same sections used in that file.
 Each entry covers **what it is**, **why it's needed**, and links to upstream documentation.
 
+This is a requested kernel profile, not a list of features missing from stock
+WSL2 or mandatory for every workload. Most options are inherited from Microsoft's
+base config. Use `scripts/configure-kernel.sh` to apply the fragment and preserve
+the upstream LSM list; use `scripts/check-config.py` to validate the resolved
+configuration. The source baseline is recorded in `kernel-version.env`.
+
 ---
 
 ## Target workloads
@@ -11,15 +17,15 @@ Each entry covers **what it is**, **why it's needed**, and links to upstream doc
 |---|---|
 | **Docker** | Container runtime using overlay2 storage, bridge networking, iptables/nftables |
 | **Tetragon** | Cilium's runtime security agent — uses kprobes, tracepoints, and BPF-LSM for enforcement |
-| **Cilium** | eBPF-native CNI — tc-BPF datapath, LWT, sockmap, conntrack, overlay encapsulation, WireGuard/IPsec |
-| **OpenTelemetry OBI** | eBPF-based auto-instrumentation — uprobes, CO-RE, cgroup-BPF, kTLS tracing |
-| **Envoy** | L7 proxy — kTLS offload, TPROXY for transparent interception, sockmap LB bypass |
+| **Cilium** | eBPF-native CNI — tc-BPF datapath, conntrack, overlay encapsulation, WireGuard/IPsec; requirements vary by mode |
+| **OpenTelemetry OBI** | eBPF-based auto-instrumentation — uprobes, CO-RE, process discovery, and optional context propagation |
+| **Envoy** | L7 proxy — optional TPROXY interception; kernel support does not enable application kTLS or sockmap integration |
 
 ---
 
 ## 1 · Networking baseline
 
-> These may be stripped by `Microsoft/config-wsl`; they are pinned here so that every eBPF feature that depends on the network stack is guaranteed to be present.
+> These are already present in the pinned Microsoft base configuration. The fragment asserts them as part of this profile, and the validator checks that dependency resolution preserves the requested values.
 
 ### `CONFIG_INET`
 Enables the **IPv4 Internet protocol suite** (TCP, UDP, ICMP, raw sockets) inside the kernel.
@@ -51,11 +57,14 @@ Provides the **kernel key-retention service** used by keyrings for TLS session k
 ### `CONFIG_DEBUG_INFO`
 Instructs the compiler to embed **DWARF debug information** in kernel objects.
 `CONFIG_DEBUG_INFO_BTF` depends on this to generate BTF from the DWARF data via `pahole` (v1.16+, v1.21+ for DWARF 5).
+In this kernel series, `DEBUG_INFO` is selected by the debug-information format
+choice. Microsoft's base config selects `DEBUG_INFO_DWARF_TOOLCHAIN_DEFAULT`;
+writing `CONFIG_DEBUG_INFO=y` alone cannot override a `DEBUG_INFO_NONE` choice.
 - [Kernel docs: BTF](https://www.kernel.org/doc/html/latest/bpf/btf.html)
 - [Medium: Building the Linux kernel with BTF](https://medium.com/@suruti94/building-the-linux-kernel-with-btf-1a617cfb4a24)
 
 ### `CONFIG_DEBUG_INFO_BTF`
-Generates the **vmlinux BTF blob** — a compact, deduplicated type description of the entire kernel. The standard location is `/sys/kernel/btf/vmlinux`. 
+Generates the **vmlinux BTF blob** — a compact, deduplicated type description of the entire kernel. The standard location is `/sys/kernel/btf/vmlinux`.
 This is the cornerstone of CO-RE: tools like `bpftool`, Tetragon, Cilium, and OBI read it at startup to resolve struct offsets without needing kernel headers or source code.
 - [Kernel docs: BTF](https://www.kernel.org/doc/html/latest/bpf/btf.html)
 - [CO-RE reference guide — Andrii Nakryiko](https://nakryiko.com/posts/bpf-core-reference-guide/)
@@ -95,13 +104,17 @@ Makes the JIT compiler **active by default** without requiring `sysctl net.core.
 
 ### `CONFIG_BPF_LSM`
 Enables **BPF Linux Security Module** hooks (since Linux 5.7). Tetragon uses BPF-LSM to enforce policy decisions (e.g., deny `execve`, restrict file access) directly in the kernel, without a traditional LSM module like SELinux or AppArmor. BPF LSM programs are **privileged, validated at load time, and executed at LSM hook points** to perform runtime checks and access control.
+Compilation is only one requirement: `CONFIG_LSM` must include `bpf`, and any
+`lsm=` kernel command-line override must also include it. The configuration
+script appends `bpf` to Microsoft's existing list. Verify activation with
+`cat /sys/kernel/security/lsm` after boot; the list must contain a `bpf` entry.
 - [Kernel docs: BPF LSM](https://www.kernel.org/doc/html/latest/bpf/bpf_lsm.html)
 - [Practical Guide to LSM BPF](https://www.ebpf.top/en/post/lsm_bpf_intro/)
 - [Tetragon docs](https://tetragon.io/docs/)
 - [Medium: LSM BPF and eBPF Security](https://medium.com/@lumontec/some-freshness-with-linux-security-modules-and-ebpf-676ac363a135)
 
 ### `CONFIG_CGROUP_BPF`
-Allows **BPF programs to be attached to cgroup v2 hooks** (socket, connect, sendmsg, etc.). Cilium uses this for per-pod socket-level load balancing and OBI uses it for kTLS tracing scoped to a container's cgroup.
+Allows **BPF programs to be attached to cgroup hooks** (socket, connect, sendmsg, etc.). Cilium uses these for socket-level load balancing; OBI context-propagation modes can use cgroup socket hooks. This does not by itself enable kernel TLS.
 - [Kernel docs: cgroup BPF](https://www.kernel.org/doc/html/latest/admin-guide/cgroup-v2.html)
 
 ### `CONFIG_XDP_SOCKETS`
@@ -109,7 +122,10 @@ Enables **AF_XDP** — zero-copy packet I/O from userspace via XDP sockets. Used
 - [Kernel docs: AF_XDP](https://www.kernel.org/doc/html/latest/networking/af_xdp.html)
 
 ### `CONFIG_BPF_STREAM_PARSER`
-Enables **sockmap** and **sk_msg** BPF program types. Cilium's socket-level load balancer (bypass kube-proxy) and Envoy's transparent pass-through use these to redirect TCP streams between sockets without copying data through userspace.
+Enables support for BPF socket stream parsing and sockmap/sk_msg programs. This
+profile includes it for applications that use socket redirection. It does not
+mean Cilium's normal socket load balancer or an ordinary Envoy deployment uses
+sockmap; application integration is required.
 - [Kernel docs: sockmap](https://www.kernel.org/doc/html/latest/bpf/map_sockmap.html)
 
 ### `CONFIG_BPF_EVENTS`
@@ -217,7 +233,7 @@ Enables **BPF programs as LWT hooks**. Cilium uses `lwt_xmit` BPF programs to ha
 
 ---
 
-## 7 · Cgroup v2 controllers — Docker, Tetragon process correlation
+## 7 · Cgroup controllers — Docker, Tetragon process correlation
 
 > cgroup v2 is the unified hierarchy used by Docker (with systemd cgroup driver) and Kubernetes. Tetragon reads cgroup identity to correlate kernel events with pods/containers.
 
@@ -239,10 +255,14 @@ The **cgroup subsystem core**. Required by every container runtime and by Tetrag
 
 ### `CONFIG_CGROUP_FREEZER`
 **Freezer cgroup controller** — allows a container's processes to be paused/resumed atomically. Used by Docker checkpoint/restore (CRIU) and some orchestrators.
+This option controls the legacy cgroup v1 freezer controller; cgroup v2's
+`cgroup.freeze` mechanism does not require this legacy option.
 - [Kernel docs: cgroup freezer](https://www.kernel.org/doc/html/latest/admin-guide/cgroup-v2.html)
 
 ### `CONFIG_CGROUP_DEVICE`
 **Device cgroup controller** — allows/denies access to specific device nodes within a container (used to implement Docker's device whitelist and Kubernetes `allowedDevices`).
+This option supplies the legacy cgroup v1 device controller. On cgroup v2,
+device access is controlled through cgroup BPF programs (`CONFIG_CGROUP_BPF`).
 - [Kernel docs: device cgroup](https://www.kernel.org/doc/html/latest/admin-guide/cgroup-v2.html#device-controller)
 
 ### `CONFIG_CGROUP_SCHED`
@@ -330,7 +350,14 @@ The **TPROXY xtables target** — redirects a packet to a local socket without c
 
 ### `CONFIG_NETFILTER_XT_TARGET_CT`
 The **`CT` xtables target** — allows explicit manipulation of conntrack entries (set zone, helper, status flags). Used by some Cilium configurations to assign conntrack zones per interface.
+It depends on `IP_NF_RAW || IP6_NF_RAW`. This profile sets both raw-table
+options to `y` so Kconfig can keep the requested CT target built in.
 - [iptables-extensions: CT](https://man7.org/linux/man-pages/man8/iptables-extensions.8.html)
+
+### `CONFIG_IP_NF_RAW` / `CONFIG_IP6_NF_RAW`
+Enable the IPv4 and IPv6 raw tables for rules evaluated before normal connection
+tracking. These supply the parent dependency for the built-in CT target and are
+also used by NOTRACK/TRACE configurations.
 
 ---
 
@@ -469,8 +496,28 @@ Exposes the embedded config via **`/proc/config.gz`**. Tools like `cilium-bugtoo
 - [Kconfig: CONFIG_IKCONFIG_PROC](https://cateee.net/lkddb/web-lkddb/IKCONFIG_PROC.html)
 
 ### `CONFIG_IKHEADERS`
-Embeds the **kernel headers** (the subset needed for BPF CO-RE) into the kernel via `/sys/kernel/kheaders.tar.xz`. Allows BPF programs to be compiled against the running kernel's exact headers without an external toolchain package.
+Embeds kernel headers in `/sys/kernel/kheaders.tar.xz` for tools that compile
+against the running kernel. BPF CO-RE normally relies on BTF and does not require
+this archive. Header availability also does not supply a compiler or LLVM tools.
 - [Kconfig: CONFIG_IKHEADERS](https://cateee.net/lkddb/web-lkddb/IKHEADERS.html)
+
+### `CONFIG_LOCALVERSION`
+Adds `-microsoft-standard-WSL2-ebpf` to the kernel release so the custom profile
+can be distinguished from a stock kernel. The runtime check compares the full
+release with `kernel-release.txt` recorded during the build.
+
+## Enforcement additions
+
+### `CONFIG_FUNCTION_ERROR_INJECTION`
+Enables error injection into kernel functions annotated with
+`ALLOW_ERROR_INJECTION()`. It is a dependency of `CONFIG_BPF_KPROBE_OVERRIDE`.
+
+### `CONFIG_BPF_KPROBE_OVERRIDE`
+Allows BPF programs to override the return value of eligible kprobed functions.
+Tetragon's kprobe `Override` action needs this option. It does not make arbitrary
+kernel functions overridable, and ordinary tracing does not require it.
+Validate the capability with `sudo tetra probe`, then test the actual policy.
+- [Tetragon Override action](https://tetragon.io/docs/concepts/tracing-policy/selectors/)
 
 ---
 
