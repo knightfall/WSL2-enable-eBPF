@@ -334,8 +334,9 @@ excluded; changing kernel series requires a separate compatibility review.
 When an update exists, the workflow validates the repository and resolves Kconfig
 on Linux before pushing the managed `automation/update-wsl-kernel` branch and
 opening or refreshing its pull request. It never merges automatically. Unchanged
-upstream state creates no commit or pull request. A moved or missing pinned tag
-fails the run for manual investigation.
+upstream state avoids downloading the kernel and creates no commit or pull
+request. An identical pending update preserves its existing commit and review
+state. A moved or missing pinned tag fails the run for manual investigation.
 
 The workflow uses the repository's `GITHUB_TOKEN` with write permissions limited
 to its update job. Under **Settings → Actions → General → Workflow permissions**,

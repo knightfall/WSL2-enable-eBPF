@@ -78,6 +78,12 @@ def main():
     lock_path = ROOT / 'kernel-version.env'
     lock = read_lock(lock_path)
     kernel = ROOT / 'WSL2-Linux-Kernel'
+    gitlink = run('git', 'ls-files', '--stage', '--', 'WSL2-Linux-Kernel').split()
+    if len(gitlink) < 3 or gitlink[:3] != ['160000', lock['KERNEL_COMMIT'], '0']:
+        raise ValueError('Submodule gitlink and source lock disagree')
+    repository = run('git', 'config', '-f', '.gitmodules', '--get', 'submodule.WSL2-Linux-Kernel.url')
+    if repository != lock['KERNEL_REPOSITORY']:
+        raise ValueError('Submodule URL and source lock disagree')
     current = TAG.fullmatch(lock['KERNEL_TAG'])
     series = '.'.join(current.groups()[:2])
     branch = run('git', 'config', '-f', '.gitmodules', '--get', 'submodule.WSL2-Linux-Kernel.branch')
@@ -92,6 +98,7 @@ def main():
         return 0
     tag, commit = release
     if args.check:
+        set_output(changed='true', tag=tag, commit=commit)
         print(f'Available: {tag} ({commit})')
         return 0
     if run('git', 'status', '--porcelain', cwd=kernel):
