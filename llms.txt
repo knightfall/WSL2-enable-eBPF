@@ -23,6 +23,7 @@ build artifacts, and local environment files from default indexing.
 - [Kernel profile](ebpf-kernel.config): requested eBPF, enforcement, networking, and container options.
 - [Configuration validation](scripts/check-config.py): required-value and LSM checks.
 - [Stable release updater](scripts/update-kernel.py): same-series numeric tag selection and source-pin updates.
+- [Update PR description](scripts/write-update-pr-body.py): release metadata and validation-run link for automated PRs.
 - [Validation workflow](.github/workflows/validate.yml): local checks and Linux Kconfig resolution.
 - [Scheduled updater](.github/workflows/update-kernel.yml): weekly/manual checks and validated update pull requests.
 - [OBI Compose example](examples/compose.yaml): Docker Engine inside WSL and an optional HTTP smoke workload.

@@ -151,6 +151,7 @@ Git and Kconfig; Python validates configuration and chooses upstream release tag
 | `scripts/check-config.py` | Fail on missing/changed options, invalid input, or absent BPF LSM activation |
 | `scripts/verify-runtime.sh` | Compare the running release; check BTF, mounts, LSMs, BPF probes, optional Tetragon probes |
 | `scripts/update-kernel.py` | Discover stable tags in the pinned series and stage a verified submodule/lock update |
+| `scripts/write-update-pr-body.py` | Render the kernel-update PR description from release and GitHub run metadata |
 | `scripts/validate-repository.sh` | Run lint, link/bundle checks, unit tests, and Compose parsing |
 | `scripts/check-links.py` | Validate local links in project docs and LLM navigation files |
 | `scripts/build-llms.py` | Generate or check the combined documentation bundle |
@@ -227,6 +228,7 @@ source pages when exact implementation behavior matters.
 - [Configuration validation](scripts/check-config.py)
 - [Runtime validation](scripts/verify-runtime.sh)
 - [Release selection/update](scripts/update-kernel.py)
+- [Update PR description](scripts/write-update-pr-body.py)
 - [Validation workflow](.github/workflows/validate.yml)
 - [Scheduled update workflow](.github/workflows/update-kernel.yml)
 

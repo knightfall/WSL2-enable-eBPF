@@ -74,18 +74,7 @@ jobs:
           KERNEL_TAG: ${{ steps.kernel.outputs.tag }}
           KERNEL_COMMIT: ${{ steps.kernel.outputs.commit }}
         run: |
-          python3 - "$RUNNER_TEMP/kernel-update-pr.md" <<'PY'
-          import os
-          from pathlib import Path
-          import sys
-          run_url = f'{os.environ["GITHUB_SERVER_URL"]}/{os.environ["GITHUB_REPOSITORY"]}/actions/runs/{os.environ["GITHUB_RUN_ID"]}'
-          Path(sys.argv[1]).write_text(
-              f'Update the WSL kernel submodule and source lock to {os.environ["KERNEL_TAG"]} '
-              f'({os.environ["KERNEL_COMMIT"]}). The update stays within the existing kernel series.\n\n'
-              f'Validation: repository checks and Linux Kconfig resolution passed in [the update run]({run_url}). '
-              'Build the kernel and run the documented WSL boot and workload smoke checks before merging.\n'
-          )
-          PY
+          python3 scripts/write-update-pr-body.py "$RUNNER_TEMP/kernel-update-pr.md"
           pr_number=$(gh pr list --head "$UPDATE_BRANCH" --base "$BASE_BRANCH" --state open --json number --jq '.[0].number // empty')
           if [[ -n "$pr_number" ]]; then
             gh pr edit "$pr_number" --title "Update WSL kernel to $KERNEL_TAG" --body-file "$RUNNER_TEMP/kernel-update-pr.md"
