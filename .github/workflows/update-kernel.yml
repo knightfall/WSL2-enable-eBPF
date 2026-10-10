@@ -1,0 +1,82 @@
+name: Update upstream WSL kernel
+
+on:
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: update-upstream-wsl-kernel
+  cancel-in-progress: false
+
+jobs:
+  update:
+    # Only the repository owning this automation should create update branches.
+    if: github.repository == 'knightfall/WSL2-enable-eBPF'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      BASE_BRANCH: ${{ github.event.repository.default_branch }}
+      UPDATE_BRANCH: automation/update-wsl-kernel
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - name: Initialize pinned kernel submodule
+        run: scripts/prepare-kernel.sh
+      - name: Select the newest stable release in the current kernel series
+        id: kernel
+        run: python3 scripts/update-kernel.py
+      - name: Install validation dependencies
+        if: steps.kernel.outputs.changed == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential flex bison dwarves libssl-dev libelf-dev cpio qemu-utils rsync python3 shellcheck
+      - name: Validate the candidate before publishing an update
+        if: steps.kernel.outputs.changed == 'true'
+        run: |
+          scripts/validate-repository.sh
+          scripts/configure-kernel.sh
+      - name: Commit and push the update branch
+        if: steps.kernel.outputs.changed == 'true'
+        env:
+          KERNEL_TAG: ${{ steps.kernel.outputs.tag }}
+        run: |
+          git switch -c "$UPDATE_BRANCH"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m "Update WSL kernel to $KERNEL_TAG"
+          remote_commit=$(git ls-remote origin "refs/heads/$UPDATE_BRANCH" | cut -f1)
+          git push --force-with-lease="refs/heads/$UPDATE_BRANCH:$remote_commit" origin "HEAD:refs/heads/$UPDATE_BRANCH"
+      - name: Open or refresh the update pull request
+        if: steps.kernel.outputs.changed == 'true'
+        env:
+          KERNEL_TAG: ${{ steps.kernel.outputs.tag }}
+          KERNEL_COMMIT: ${{ steps.kernel.outputs.commit }}
+        run: |
+          python3 - "$RUNNER_TEMP/kernel-update-pr.md" <<'PY'
+          import os
+          from pathlib import Path
+          import sys
+          run_url = f'{os.environ["GITHUB_SERVER_URL"]}/{os.environ["GITHUB_REPOSITORY"]}/actions/runs/{os.environ["GITHUB_RUN_ID"]}'
+          Path(sys.argv[1]).write_text(
+              f'Update the WSL kernel submodule and source lock to {os.environ["KERNEL_TAG"]} '
+              f'({os.environ["KERNEL_COMMIT"]}). The update stays within the existing kernel series.\n\n'
+              f'Validation: repository checks and Linux Kconfig resolution passed in [the update run]({run_url}). '
+              'Build the kernel and run the documented WSL boot and workload smoke checks before merging.\n'
+          )
+          PY
+          pr_number=$(gh pr list --head "$UPDATE_BRANCH" --base "$BASE_BRANCH" --state open --json number --jq '.[0].number // empty')
+          if [[ -n "$pr_number" ]]; then
+            gh pr edit "$pr_number" --title "Update WSL kernel to $KERNEL_TAG" --body-file "$RUNNER_TEMP/kernel-update-pr.md"
+          else
+            gh pr create --head "$UPDATE_BRANCH" --base "$BASE_BRANCH" --title "Update WSL kernel to $KERNEL_TAG" --body-file "$RUNNER_TEMP/kernel-update-pr.md"
+          fi
