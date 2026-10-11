@@ -52,7 +52,7 @@ installer and evidence with GitHub CLI. **Verify the installer before executing
 it**, using this PowerShell sequence and your actual published release tag:
 
 ```powershell
-$tag = 'ebpf-v1.0.0'
+$tag = 'ebpf-v6.6.123.2-r1'
 $repo = 'knightfall/WSL2-enable-eBPF'
 gh release download $tag --repo $repo --pattern Install-WslEbpfKernel.ps1 --pattern provenance.sigstore.json
 if ($LASTEXITCODE -ne 0) { throw 'Download failed' }
@@ -67,8 +67,8 @@ if ($LASTEXITCODE -ne 0) { throw 'Installer provenance verification failed' }
 Then inspect and run the verified installer:
 
 ```powershell
-.\Install-WslEbpfKernel.ps1 -ReleaseTag ebpf-v1.0.0 -WhatIf
-.\Install-WslEbpfKernel.ps1 -ReleaseTag ebpf-v1.0.0
+.\Install-WslEbpfKernel.ps1 -ReleaseTag ebpf-v6.6.123.2-r1 -WhatIf
+.\Install-WslEbpfKernel.ps1 -ReleaseTag ebpf-v6.6.123.2-r1
 ```
 
 The installer uses GitHub CLI to download that explicit version, verifies release
@@ -106,7 +106,7 @@ without cloning this repository:
 
 ```bash
 WIN_PROFILE=$(powershell.exe -NoProfile -Command '[Console]::Write($env:USERPROFILE)' | tr -d '\r\n')
-RELEASE_DIR="$(wslpath -u "$WIN_PROFILE")/wsl-kernel/ebpf-v1.0.0"
+RELEASE_DIR="$(wslpath -u "$WIN_PROFILE")/wsl-kernel/ebpf-v6.6.123.2-r1"
 sudo bash "$RELEASE_DIR/scripts/verify-runtime.sh" "$(cat "$RELEASE_DIR/kernel-release.txt")"
 ```
 
@@ -127,7 +127,18 @@ building a release; the workflow never silently falls back to checksums. See
 Restrict creation of `ebpf-v*` tags to maintainers with a repository ruleset.
 
 Commit the build tooling and reviewed source pin, then push a version tag such
-as `ebpf-v1.0.0`. [The release workflow](.github/workflows/release.yml) validates
+as `ebpf-v6.6.123.2-r1`. Release tags use `ebpf-v<Microsoft kernel version>-r<revision>`;
+the kernel version must match `KERNEL_TAG` in `kernel-version.env`. Start at `r1`
+for each upstream version and increment the revision for eBPF, tooling, or
+packaging changes on that same kernel. Never move a published tag.
+
+```bash
+source kernel-version.env
+git tag -a "ebpf-v${KERNEL_TAG#linux-msft-wsl-}-r1" -m "WSL2 eBPF kernel ${KERNEL_TAG}, revision 1"
+git push origin "ebpf-v${KERNEL_TAG#linux-msft-wsl-}-r1"
+```
+
+[The release workflow](.github/workflows/release.yml) validates
 the repository, compiles the pinned kernel on Ubuntu 24.04, packages modules
 using Microsoft's script, attests every packaged object (including the installer, checksums, and source),
 and creates a **draft** release with the evidence bundle. The build job has
