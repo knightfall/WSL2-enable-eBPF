@@ -164,6 +164,7 @@ Git and Kconfig; Python validates configuration and chooses upstream release tag
 | `scripts/build-llms.py` | Generate or check the combined documentation bundle |
 | `tests/` | Standard-library Python tests for config parsing/requirements and release selection |
 | `examples/compose.yaml`, `examples/.env.example` | Versioned OBI agent and optional HTTP smoke target |
+| `.github/dependabot.yml` | Weekly grouped updates for SHA-pinned GitHub Actions |
 | `.github/workflows/validate.yml` | Repository checks and pinned-kernel Kconfig resolution on Linux |
 | `.github/workflows/update-kernel.yml` | Weekly/manual discovery, candidate validation, managed branch, update PR |
 | `llms.txt`, `llms-full.txt` | Curated navigation index and generated documentation bundle |
@@ -692,7 +693,14 @@ for script in scripts/*.sh; do bash -n "$script"; done
 ```
 
 After editing documentation, run `python3 scripts/build-llms.py` to regenerate
-the bundle. CI checks for stale bundle content and broken local navigation links.
+the bundle. CI checks for stale bundle content and broken local navigation links. Validation
+runs for pull requests and pushes to `main`, cancelling superseded runs for the
+same ref. All Actions in the workflows use full commit SHA pins with release
+version comments. Dependabot proposes grouped weekly Actions updates; review and
+merge those updates to keep the pins current. Validation/build checkouts do not
+persist Git credentials; the upstream updater retains credentials for its
+managed branch push. Artifacts have bounded retention and missing files fail
+uploads; release artifact downloads fail on digest mismatch.
 
 [Configuration CI](.github/workflows/validate.yml) also runs ShellCheck, parses
 Compose, fetches the pinned source, merges the fragment, resolves Kconfig on

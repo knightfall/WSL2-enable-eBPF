@@ -446,7 +446,14 @@ for script in scripts/*.sh; do bash -n "$script"; done
 ```
 
 After editing documentation, run `python3 scripts/build-llms.py` to regenerate
-the bundle. CI checks for stale bundle content and broken local navigation links.
+the bundle. CI checks for stale bundle content and broken local navigation links. Validation
+runs for pull requests and pushes to `main`, cancelling superseded runs for the
+same ref. All Actions in the workflows use full commit SHA pins with release
+version comments. Dependabot proposes grouped weekly Actions updates; review and
+merge those updates to keep the pins current. Validation/build checkouts do not
+persist Git credentials; the upstream updater retains credentials for its
+managed branch push. Artifacts have bounded retention and missing files fail
+uploads; release artifact downloads fail on digest mismatch.
 
 [Configuration CI](.github/workflows/validate.yml) also runs ShellCheck, parses
 Compose, fetches the pinned source, merges the fragment, resolves Kconfig on

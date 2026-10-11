@@ -32,6 +32,7 @@ Git and Kconfig; Python validates configuration and chooses upstream release tag
 | `scripts/build-llms.py` | Generate or check the combined documentation bundle |
 | `tests/` | Standard-library Python tests for config parsing/requirements and release selection |
 | `examples/compose.yaml`, `examples/.env.example` | Versioned OBI agent and optional HTTP smoke target |
+| `.github/dependabot.yml` | Weekly grouped updates for SHA-pinned GitHub Actions |
 | `.github/workflows/validate.yml` | Repository checks and pinned-kernel Kconfig resolution on Linux |
 | `.github/workflows/update-kernel.yml` | Weekly/manual discovery, candidate validation, managed branch, update PR |
 | `llms.txt`, `llms-full.txt` | Curated navigation index and generated documentation bundle |
