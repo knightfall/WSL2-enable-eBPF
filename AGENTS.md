@@ -6,9 +6,10 @@ This repository builds and documents a custom x86-64 WSL2 kernel profile for
 eBPF observability and networking. It contains Bash/Python tooling, a kernel
 configuration fragment, Compose examples, and GitHub Actions workflows. For OBI-only use, start with the managed Microsoft kernel: the compared
 6.6.123.2 and 6.18.54.1 base configs already enable its core BPF/BTF/tracing
-prerequisites. Keep source compatibility separate from live OBI validation. The
-full-profile validators require enforcement/networking features and must not be
-presented as OBI-only checks. It does
+prerequisites. Keep source compatibility separate from live OBI validation.
+The 6.18 base already includes bpf in CONFIG_LSM and NET_SOCK_MSG; avoid claiming
+those are custom additions. Distinguish SK_MSG propagation from receive-side
+BPF_STREAM_PARSER. The full-profile validators require enforcement/networking features and must not be presented as OBI-only checks. This repository does
 not implement Linux, Tetragon, Cilium, Envoy, or OBI themselves.
 
 Start with [the repository map](docs/REPOSITORY_MAP.md) and [README.md](README.md).
@@ -50,7 +51,7 @@ Source files remain authoritative when prose and implementation disagree.
 - Add desired options to `ebpf-kernel.config`; do not edit Microsoft's tracked
   base config. Add missing parent dependencies instead of weakening the validator.
 - `scripts/configure-kernel.sh` starts from the pinned Microsoft base, merges the
-  fragment, appends `bpf` to the existing LSM order, resolves Kconfig, and checks
+  fragment, ensures `bpf` is in the existing LSM order, resolves Kconfig, and checks
   all requested values. Preserve the other LSMs when changing this flow.
 - `CONFIG_BPF_LSM=y` alone does not activate BPF LSM. Runtime activation also
   depends on the LSM list and any `lsm=` command-line override.
@@ -72,13 +73,14 @@ for script in scripts/*.sh; do bash -n "$script"; done
 
 `scripts/validate-repository.sh` additionally needs ShellCheck and Docker Compose
 v2. Compose parsing does not require a running Docker daemon. Use Actionlint for
-workflow changes when available. Tests use Python's standard-library `unittest`;
+workflow changes when available. Python tests use the standard-library `unittest`;
 no Python package installation is needed for the tooling.
 
 Kernel configuration/builds require x86-64 Linux and the prerequisites in the
 README. Use a case-sensitive Linux filesystem. macOS and Windows host filesystems
 may collapse distinct upstream kernel filenames and create apparent source
-changes. Hosted Linux CI validates Kconfig resolution, not a full kernel build.
+changes. The configuration-validation workflow resolves Kconfig; the release workflow
+performs a full kernel and artifact build. Neither workflow boots WSL.
 
 Only claim checks that were actually executed. Distinguish static/lint/unit
 checks, Linux configuration resolution, full compilation, WSL boot, runtime BPF
@@ -91,8 +93,7 @@ The scheduled update workflow creates/refreshes
 `automation/update-wsl-kernel` and an update PR after configuration validation.
 It never merges automatically. Keep no-op discovery lightweight, preserve an
 identical pending commit, and retain the explicit force-with-lease check for
-changed managed branches. The repository's default workflow token remains
-read-only; the update job requests contents and pull-request writes, while the release draft
+changed managed branches. Workflows declare `contents: read` at their top level; the update job requests contents and pull-request writes, while the release draft
 job requests contents writes. Release builds request OIDC and attestation writes,
 keep contents read-only, and create drafts
 for Windows acceptance testing before publication. Preserve fail-closed verification
@@ -104,6 +105,20 @@ namespace automatically reaches Desktop workloads. Keep broad agent privileges
 and relaxed sandbox profiles explicit in documentation.
 
 ## Documentation maintenance
+
+For factual claims, cite the pinned kernel Kconfig/implementation for mechanisms
+and versioned primary application sources for integrations. Do not infer a
+product requirement from an enabled kernel option. Qualify attachment modes,
+child dependencies, defaults, and runtime policy. Record dated test evidence
+separately from source compatibility; remove unsupported product mappings and
+performance claims instead of marking them as optional speculation.
+
+Use [the assurance case](docs/ASSURANCE_CASE.md) to track claim/evidence
+boundaries. Preserve dated raw records under `docs/evidence/`; treat historical
+ledger findings as audit history, not current recommended settings. Avoid
+indexing raw logs, saved configs, or the historical ledger by default. Never
+refresh review digests merely to hide a changed input; repeat the affected
+review first.
 
 Update the README and repository map when entry points or workflow behavior
 change. `llms.txt` is the small, curated index; keep it useful without embedding

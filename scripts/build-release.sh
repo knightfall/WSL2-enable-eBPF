@@ -15,12 +15,24 @@ if ! git diff --quiet || ! git diff --cached --quiet; then
     printf 'Commit tracked build inputs before packaging release source.\n' >&2
     exit 1
 fi
+# modules_install can succeed while skipping depmod when kmod is missing.
+# Require it before the expensive build so releases contain loadable metadata.
+if ! command -v depmod >/dev/null; then
+    printf 'Missing build dependency: depmod (install kmod).\n' >&2
+    exit 1
+fi
 scripts/prepare-kernel.sh
 scripts/configure-kernel.sh
 mkdir "$out"
 make -C "$kernel_dir" -j"${JOBS:-$(nproc)}" KCONFIG_CONFIG=.config
 make -C "$kernel_dir" KCONFIG_CONFIG=.config INSTALL_MOD_PATH="$kernel_dir/modules" modules_install
 release=$(make -s -C "$kernel_dir" KCONFIG_CONFIG=.config kernelrelease)
+for metadata in modules.dep modules.alias; do
+    if [[ ! -s "$kernel_dir/modules/lib/modules/$release/$metadata" ]]; then
+        printf 'Missing module metadata: %s; refusing to package VHDX.\n' "$metadata" >&2
+        exit 1
+    fi
+done
 make -C "$kernel_dir" KCONFIG_CONFIG=.config headers_install INSTALL_HDR_PATH="$kernel_dir/headers"
 make -C "$kernel_dir/tools/perf" -j"${JOBS:-$(nproc)}" NO_JEVENTS=1 NO_JVMTI=1 NO_LIBTRACEEVENT=1 install DESTDIR="$kernel_dir/perf" prefix=/
 sudo "$kernel_dir/Microsoft/scripts/gen_artifacts_vhdx.sh" "$kernel_dir/modules" "$kernel_dir/headers" "$kernel_dir/perf" "$release" "$out/modules.vhdx"

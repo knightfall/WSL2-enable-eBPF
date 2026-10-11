@@ -9,7 +9,8 @@ import sys
 from urllib.parse import urlsplit, urlunsplit
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCES = ('AGENTS.md', 'docs/REPOSITORY_MAP.md', 'README.md', 'KERNEL_CONFIG_EXPLAINED.md')
+SOURCES = ('AGENTS.md', 'docs/REPOSITORY_MAP.md', 'README.md', 'KERNEL_CONFIG_EXPLAINED.md',
+           'docs/RELEASE_ACCEPTANCE.md', 'docs/VALIDATION_6.18.54.1.md', 'docs/ASSURANCE_CASE.md')
 OUTPUT = ROOT / 'llms-full.txt'
 
 

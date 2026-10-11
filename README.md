@@ -2,15 +2,16 @@
 
 For **OpenTelemetry OBI alone**, start with Microsoft's managed WSL kernel.
 The compared Microsoft 6.6.123.2 and 6.18.54.1 source configurations already
-enable core BPF, BTF, kprobes, uprobes, perf events, and cgroup-BPF. Installing
-this custom kernel is usually unnecessary for OBI. Check the running kernel and
+enable core BPF, BTF, kprobes, uprobes, perf events, and cgroup-BPF. These
+source configs do not show a need for this custom profile merely to provide
+OBI's core prerequisites. Check the running kernel and
 selected OBI features using the OBI-only path below; the managed kernel installed
 on your machine may differ from the source versions compared here.
 
-This repository also builds a reproducible x86-64 kernel profile for Tetragon
+This repository also builds a source-pinned x86-64 kernel profile for Tetragon
 policy enforcement, Cilium networking, Docker Engine, and transparent proxy
-workloads. It adds kprobe return override, activates BPF LSM, adds optional
-sockmap/LWT support, and makes selected networking features built-in. These
+workloads. It adds kprobe return override, preserves BPF LSM activation, adds optional
+BPF stream-parser/LWT support, and makes selected networking features built-in. These
 changes serve the combined profile and are not an OBI prerequisite list.
 
 The [configuration fragment](ebpf-kernel.config) defines that combined profile.
@@ -24,6 +25,11 @@ For repository navigation and indexing, start with [AGENTS.md](AGENTS.md),
 These guides keep the upstream kernel tree and local build artifacts outside
 the default project index.
 
+The [factual assurance case](docs/ASSURANCE_CASE.md) records the source-backed
+claims, preserved audit/build evidence, snapshot identities, reproducible checks,
+and remaining release and runtime obligations. It defines the limits of the
+verification status below.
+
 ## Scope and verification status
 
 | Component | Baseline / status |
@@ -34,6 +40,7 @@ the default project index.
 | WSL | WSL2 with support for `.wslconfig` `kernel` and `kernelModules`; inspect `wsl --version` |
 | Docker example | Docker Engine inside the same WSL distro; Compose v2 |
 | OBI example | Versioned image selected in [examples/.env.example](examples/.env.example) |
+| Local Linux build | Full 6.18.54.1 kernel/perf/VHDX validation passed on 2026-10-11; see [evidence](docs/VALIDATION_6.18.54.1.md) |
 | Automated checks | Script syntax, validator regressions, local links, Compose parsing, and Linux Kconfig resolution |
 | Windows boot and workload tests | Require the runtime and smoke checks below; CI does not boot WSL |
 
@@ -51,21 +58,25 @@ capabilities required by the enabled features. See the official
 [OBI support matrix](https://github.com/open-telemetry/opentelemetry-ebpf-instrumentation/blob/main/SUPPORT_MATRIX.md),
 [capability guide](https://opentelemetry.io/docs/zero-code/obi/security/), and
 [context propagation requirements](https://opentelemetry.io/docs/zero-code/obi/distributed-traces/).
-Check the documentation matching the OBI release you deploy.
+The example pins OBI **v0.14.0**. Its
+[release support matrix](https://github.com/open-telemetry/opentelemetry-ebpf-instrumentation/blob/v0.14.0/SUPPORT_MATRIX.md)
+is the versioned baseline; current website documentation can describe newer behavior.
+OBI is still in Development, so verify support when changing its version.
 
 | Feature | Microsoft 6.6.123.2 and 6.18.54.1 base configs | OBI-only implication |
 |---|---|---|
 | BPF syscall/JIT, BTF, kprobe/uprobe events, perf events, cgroup-BPF | Enabled built-in | No fragment change needed for these settings |
 | tc-BPF classifier and ingress qdisc | Available as modules | For modes that use them, ensure matching modules are present and loadable |
-| BPF LSM activation and kprobe return override | Combined profile adds activation/override support | Not required for OBI instrumentation |
+| BPF LSM and kprobe return override | Both compile BPF LSM; 6.18 also lists `bpf` in `CONFIG_LSM`. Return override is disabled in both | Neither is required for OBI instrumentation |
+| Socket-message BPF | `NET_SOCK_MSG=y` in both; `BPF_STREAM_PARSER` disabled | OBI network propagation uses SK_MSG; the separate receive-side BPF stream parser is not its prerequisite |
 | Legacy netfilter, TPROXY, overlays, WireGuard/IPsec | Combined profile makes selected features built-in | Workload networking choices, not OBI instrumentation prerequisites |
 | Module BTF and embedded kernel headers | Additional tooling support | Not baseline OBI requirements; CO-RE relies on kernel BTF |
 
 Evidence: Microsoft's
-[6.6.123.2 base config](https://github.com/microsoft/WSL2-Linux-Kernel/blob/linux-msft-wsl-6.6.123.2/Microsoft/config-wsl)
-and [6.18.54.1 base config](https://github.com/microsoft/WSL2-Linux-Kernel/blob/linux-msft-wsl-6.18.54.1/Microsoft/config-wsl).
-At the 6.18.54.1 tag, `Microsoft/config-wsl` is byte-for-byte identical to
-[`arch/x86/configs/config-wsl`](https://github.com/microsoft/WSL2-Linux-Kernel/blob/linux-msft-wsl-6.18.54.1/arch/x86/configs/config-wsl).
+[6.6.123.2 base config](https://github.com/microsoft/WSL2-Linux-Kernel/blob/a07f9ea8a99139913acbcc1c160b132cb2a49c81/Microsoft/config-wsl)
+and [6.18.54.1 base config](https://github.com/microsoft/WSL2-Linux-Kernel/blob/d504d40ab83839cb61942a812a99d183c42227b9/Microsoft/config-wsl).
+At the 6.18.54.1 tag, `Microsoft/config-wsl` is a symlink to
+[`arch/x86/configs/config-wsl`](https://github.com/microsoft/WSL2-Linux-Kernel/blob/d504d40ab83839cb61942a812a99d183c42227b9/arch/x86/configs/config-wsl).
 The build script uses the former path. This is a source comparison, not proof
 that OBI has been tested on stock WSL.
 
@@ -89,14 +100,21 @@ findmnt -T /sys/fs/cgroup # expected: cgroup2
 Clone this repository to obtain the Compose example; kernel source initialization,
 compilation, the custom installer, and BPF LSM activation are unnecessary for this
 path. Set `REPO_DIR` to the clone directory and continue at **section 8**. Confirm
-OBI attaches and emits telemetry for your actual workload. For modes using tc,
+OBI attaches and emits telemetry for your actual workload. For classic tc modes,
 check matching modules with `sudo modprobe cls_bpf` and `sudo modprobe sch_ingress`.
+For network context propagation, also inspect `sudo bpftool feature probe kernel`
+for `sk_msg`, `sock_ops`, and `sockhash` support. OBI v0.14.0 uses these in its
+[context injector](https://github.com/open-telemetry/opentelemetry-ebpf-instrumentation/blob/v0.14.0/bpf/tpinjector/tpinjector.c).
+The pinned kernel separately gates receive-side stream parsing with
+[`BPF_STREAM_PARSER`](https://github.com/microsoft/WSL2-Linux-Kernel/blob/d504d40ab83839cb61942a812a99d183c42227b9/net/core/sock_map.c);
+its disabled upstream value is not proof that SK_MSG is unavailable.
 A missing module is a packaging or availability issue; it does not establish that
 OBI needs the entire combined profile. OBI must observe the Linux kernel and
 process namespaces hosting the target; see the Docker Desktop caveat in section 8.
 
 `scripts/check-config.py` and `scripts/verify-runtime.sh` validate the **combined
-custom profile**, including its version suffix and active BPF LSM. Their failures
+custom profile**, including its version suffix and BPF LSM requirements. The config checker
+checks `CONFIG_LSM`; the runtime verifier checks the active LSM list. Their failures
 on a stock kernel are not an OBI compatibility diagnosis. Use OBI's capability
 checks and workload smoke tests for the OBI-only path.
 
@@ -196,9 +214,12 @@ building a release; the workflow never silently falls back to checksums. See
 Restrict creation of `ebpf-v*` tags to maintainers with a repository ruleset.
 
 Commit the build tooling and reviewed source pin, then push a version tag such
-as `ebpf-v6.18.54.1-r1`. [The release workflow](.github/workflows/release.yml) validates
+as `ebpf-v6.18.54.1-r1` (an example tag, not a claim that this release is published).
+Use `ebpf-v<Microsoft kernel version>-r<positive revision>`; increment the revision
+for packaging/profile changes on the same upstream version. Never move a published tag.
+[The release workflow](.github/workflows/release.yml) validates
 the repository, compiles the pinned kernel on Ubuntu 24.04, packages modules
-using Microsoft's script, attests every packaged object (including the installer, checksums, and source),
+using Microsoft's script with UAPI headers and perf tooling, attests every packaged object (including the installer, checksums, and source),
 and creates a **draft** release with the evidence bundle. The build job has
 `id-token: write` and `attestations: write`; only the draft job has
 `contents: write`. Release workflow Actions are pinned to immutable commits. The build timeout is three hours; large
@@ -219,12 +240,16 @@ Before publishing the draft, test its exact binary assets on Windows: boot,
 module loading, runtime BPF probes, relevant workload smoke tests, and rollback.
 During draft acceptance, download assets with authenticated GitHub CLI and
 verify their build attestations with the policy above; immutable release
-verification becomes available at publication. Configure the test machine
-manually using sections 5–6, since the installer intentionally rejects drafts.
+verification becomes available at publication. Use the [draft staging sequence](docs/RELEASE_ACCEPTANCE.md) to verify the
+downloaded assets and create the verifier's dependency layout, then configure
+the test machine with those exact paths. The installer intentionally rejects
+drafts; do not substitute a local build using section 5's Linux copy commands.
 Update the release notes with evidence, then publish through GitHub. Publication
 locks the assets and tag and creates GitHub's release attestation. Afterwards,
 verify the published installer and exercise its normal installation flow.
 Configuration validation and successful compilation alone do not prove WSL boot.
+Use the [release acceptance guide](docs/RELEASE_ACCEPTANCE.md) to record the
+remaining build, artifact, Windows, and workload evidence.
 No tag or release is created by a local build.
 
 ## 1. Check the environment and install prerequisites
@@ -242,10 +267,12 @@ Confirm the build distro uses WSL version 2. Inside that distro:
 uname -m # these instructions require x86_64
 sudo apt update
 sudo apt install -y git build-essential flex bison dwarves libssl-dev libelf-dev \
-  cpio qemu-utils rsync python3 xz-utils bc libncurses-dev
+  cpio qemu-utils rsync python3 xz-utils bc libncurses-dev kmod e2fsprogs
 pahole --version
 ```
 
+`kmod` supplies `depmod`, which generates the metadata needed to load modules.
+`e2fsprogs` supplies the filesystem tools used for VHDX packaging and inspection.
 `dwarves` supplies `pahole` for BTF generation. The detected version depends on
 your installed package; it need not be exactly 1.25. `libncurses-dev` is used by
 the optional `menuconfig` interface. Build on the distro's Linux filesystem
@@ -278,7 +305,7 @@ and `KERNEL_DIR` to its nested kernel checkout.
 ```
 
 This backs up any previous `.config`, starts from `Microsoft/config-wsl`, merges
-`ebpf-kernel.config`, preserves Microsoft's LSM list and appends `bpf`, then runs
+`ebpf-kernel.config`, preserves Microsoft's LSM list and appends `bpf` only if absent, then runs
 `olddefconfig`. The validator fails if any requested value is missing, disabled,
 or changed by dependency resolution. It also checks that `CONFIG_LSM` contains
 `bpf`. The fragment enables `CONFIG_FUNCTION_ERROR_INJECTION` and
@@ -324,8 +351,13 @@ sudo ./Microsoft/scripts/gen_artifacts_vhdx.sh \
 source pin, use a fresh source checkout and module staging directory so stale
 artifacts cannot be included. The packaging command above belongs to the pinned
 6.18 source series and includes modules, UAPI headers, and perf tooling; check
-upstream instructions when changing kernel series. Use a current WSL version
-supporting Microsoft's 6.18 artifact layout.
+upstream instructions when changing kernel series.
+
+The image layout is `<kernelrelease>/{modules,linux-headers,perf}`; UAPI headers
+are not a full kernel development tree for building external modules. Update WSL
+with `wsl --update` and check `wsl --version`. A minimum compatible WSL version
+for this layout has not been established here; module loading on the target WSL
+version is a required acceptance test.
 
 ## 5. Copy artifacts and preserve a rollback path
 
@@ -498,7 +530,16 @@ the target process's listening port inside its container. Select the appropriate
 versioned OBI image in `examples/.env`. The base example leaves context
 propagation at OBI's default; enable it deliberately and test requests between
 your services. The tracefs and cgroup mounts are already supplied for modes that
-need them. Log enrichment and profile correlation have their own application
+need them. On 6.18.54.1, OBI v0.14.0 requires the host tracefs mount for its
+context-propagation FIONREAD compensation check; the example supplies it.
+Library-level Go propagation also needs `SYS_ADMIN` and a kernel permitting
+`bpf_probe_write_user`; check lockdown and OBI diagnostics. If that mode needs
+lockdown detection, mount the host securityfs at `/sys/kernel/security` as
+described in the official context-propagation guide. This is separate from
+activating BPF LSM. Test a two-service request and matching trace IDs: the
+one-server smoke test only checks instrumentation and output.
+
+Log enrichment and profile correlation have their own application
 and OBI configuration requirements; mounting bpffs alone does not enable them.
 
 ### Docker Desktop
@@ -544,8 +585,7 @@ resolution, not a complete kernel build or WSL boot.
 
 [The upstream update workflow](.github/workflows/update-kernel.yml) runs weekly
 on Monday at 03:17 UTC and can be started manually from GitHub Actions. It checks
-Microsoft's stable release tags in the currently pinned kernel series (initially
-6.18), selects the newest version numerically, and updates both the submodule
+Microsoft's stable release tags in the currently pinned kernel series (6.18), selects the newest version numerically, and updates both the submodule
 gitlink and `kernel-version.env`. New kernel series and prerelease tags are
 excluded; changing kernel series requires a separate compatibility review.
 
@@ -573,7 +613,7 @@ python3 scripts/update-kernel.py --check
 
 ## Upstream references
 
-- [Microsoft's 6.18 kernel build instructions](https://github.com/microsoft/WSL2-Linux-Kernel/blob/linux-msft-wsl-6.18.y/README.md)
+- [Microsoft's 6.18 kernel build instructions](https://github.com/microsoft/WSL2-Linux-Kernel/blob/d504d40ab83839cb61942a812a99d183c42227b9/README.md)
 - [WSL configuration, custom kernels, and fstab processing](https://learn.microsoft.com/en-us/windows/wsl/wsl-config)
 - [Tetragon runtime probes](https://tetragon.io/docs/installation/faq/)
 - [Tetragon BPF LSM activation](https://tetragon.io/docs/concepts/tracing-policy/hooks/)

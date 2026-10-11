@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail when Kconfig drops a requested option or leaves BPF LSM inactive."""
+"""Fail when Kconfig drops a requested option or omits bpf from CONFIG_LSM."""
 
 import argparse
 from pathlib import Path

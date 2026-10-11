@@ -1,0 +1,5 @@
+Rechecked preserved extracted sample on 2026-10-11 with Python ELF64 little-endian section parsing.
+SHA256=b82e8697b37dd39b036be1a90986d3b86917ff3b04030131b865a23e48d5685e
+.BTF section bytes=2875
+vermagic=6.18.54.1-microsoft-standard-WSL2-ebpf+ SMP preempt mod_unload modversions 
+RESULT: PASS

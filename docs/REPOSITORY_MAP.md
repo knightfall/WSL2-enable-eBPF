@@ -9,6 +9,9 @@ Git and Kconfig; Python validates configuration and chooses upstream release tag
 - [Agent instructions](../AGENTS.md): scope, indexing boundaries, invariants, and checks.
 - [Installation and runtime guide](../README.md): the complete WSL setup and rollback flow.
 - [Kernel option explanations](../KERNEL_CONFIG_EXPLAINED.md): the requested profile and dependencies.
+- [Release acceptance](RELEASE_ACCEPTANCE.md): artifact, Windows/WSL, and workload validation evidence.
+- [6.18.54.1 build evidence](VALIDATION_6.18.54.1.md): dated Linux results and validation limits.
+- [Factual assurance case](ASSURANCE_CASE.md): claims, preserved evidence, reproducible checks, and open obligations.
 - [Source lock](../kernel-version.env): current release tag, upstream URL, and immutable commit.
 
 ## File responsibilities
@@ -23,18 +26,19 @@ Git and Kconfig; Python validates configuration and chooses upstream release tag
 | `.github/workflows/release.yml` | Pinned Actions, version-tag build, provenance attestation, and draft release publication |
 | `scripts/prepare-kernel.sh` | Check lock/gitlink agreement and initialize the pinned submodule |
 | `scripts/configure-kernel.sh` | Back up `.config`, merge the fragment, preserve LSMs, resolve dependencies |
-| `scripts/check-config.py` | Fail on missing/changed options, invalid input, or absent BPF LSM activation |
+| `scripts/check-config.py` | Fail on missing/changed options, invalid input, or missing BPF LSM configuration |
 | `scripts/verify-runtime.sh` | Compare the running release; check BTF, mounts, LSMs, BPF probes, optional Tetragon probes |
 | `scripts/update-kernel.py` | Discover stable tags in the pinned series and stage a verified submodule/lock update |
 | `scripts/write-update-pr-body.py` | Render the kernel-update PR description from release and GitHub run metadata |
 | `scripts/validate-repository.sh` | Run lint, link/bundle checks, unit tests, and Compose parsing |
 | `scripts/check-links.py` | Validate local links in project docs and LLM navigation files |
 | `scripts/build-llms.py` | Generate or check the combined documentation bundle |
-| `tests/` | Standard-library Python tests for config parsing/requirements and release selection |
+| `tests/` | Python config/updater tests and PowerShell installer mock execution tests |
 | `examples/compose.yaml`, `examples/.env.example` | Versioned OBI agent and optional HTTP smoke target |
 | `.github/dependabot.yml` | Weekly grouped updates for SHA-pinned GitHub Actions |
 | `.github/workflows/validate.yml` | Repository checks and pinned-kernel Kconfig resolution on Linux |
 | `.github/workflows/update-kernel.yml` | Weekly/manual discovery, candidate validation, managed branch, update PR |
+| `docs/ASSURANCE_CASE.md`, `docs/evidence/` | Version-bound factual argument and preserved source/audit/build records; raw historical evidence is not setup guidance |
 | `llms.txt`, `llms-full.txt` | Curated navigation index and generated documentation bundle |
 
 The source directory may be uninitialized until `scripts/prepare-kernel.sh` runs.
@@ -47,7 +51,9 @@ BTF, supply the selected OBI capabilities and example mounts, then run the OBI
 Compose smoke test on Docker Engine inside the target WSL distro. A custom
 kernel, BPF LSM activation, and the combined-profile validators are not baseline
 OBI prerequisites. Microsoft 6.6.123.2 and 6.18.54.1 source configs already supply
-core BPF/BTF/tracing support; runtime compatibility remains separately tested.
+core BPF/BTF/tracing and NET_SOCK_MSG support. Network propagation needs
+feature-specific probes, mounts, privileges, and two-service tests; runtime
+compatibility requires separate runtime tests.
 
 ## Custom kernel build and verification flow
 
@@ -55,7 +61,7 @@ core BPF/BTF/tracing support; runtime compatibility remains separately tested.
 Git submodule pin + source lock
   -> prepare-kernel.sh verifies and initializes source
   -> configure-kernel.sh merges Microsoft base + ebpf-kernel.config
-  -> preserve existing CONFIG_LSM, append bpf
+  -> preserve CONFIG_LSM; append bpf only if absent
   -> olddefconfig resolves dependencies
   -> check-config.py verifies requested values
   -> README build commands compile kernel and package modules.vhdx

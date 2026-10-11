@@ -1,0 +1,35 @@
+bzImage: OK
+modules.vhdx: OK
+kernel.config: OK
+ebpf-kernel.config: OK
+kernel-version.env: OK
+verify-runtime.sh: OK
+check-config.py: OK
+kernel-release.txt: OK
+build-info.txt: OK
+kernel-source.tar.xz: OK
+build-source.tar.xz: OK
+KERNEL-COPYING: OK
+Install-WslEbpfKernel.ps1: OK
+All requested options and BPF LSM activation are configured.
+image: dist/modules.vhdx
+file format: vhdx
+virtual size: 1.23 GiB (1325688832 bytes)
+disk size: 0.987 GiB
+cluster_size: 16777216
+Child node '/file':
+    filename: dist/modules.vhdx
+    protocol type: file
+    file length: 1.04 GiB (1115684864 bytes)
+    disk size: 0.987 GiB
+debugfs 1.47.0 (5-Feb-2023)
+debugfs 1.47.0 (5-Feb-2023)
+debugfs 1.47.0 (5-Feb-2023)
+debugfs 1.47.0 (5-Feb-2023)
+perf version 6.18.54.1.gd504d40ab838
+debugfs 1.47.0 (5-Feb-2023)
+Verified sample module vermagic: 6.18.54.1-microsoft-standard-WSL2-ebpf+ SMP preempt mod_unload modversions 
+  [14] .BTF              PROGBITS         ffffffff82fce000  021ce000
+  [15] .BTF_ids          PROGBITS         ffffffff835a7000  027a7000
+x86 kernel boot header passed.
+Checksum, config, boot header, BTF, VHDX module metadata, headers, perf, and sample-module checks passed.

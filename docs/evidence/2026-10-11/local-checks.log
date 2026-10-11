@@ -1,0 +1,79 @@
+COMMAND: python3 -m unittest discover -s tests -v
+EXIT_CODE: 0
+test_compilation_without_active_lsm_fails_cli (test_check_config.ConfigValidationTests) ... ok
+test_complete_config_preserves_other_lsms (test_check_config.ConfigValidationTests) ... ok
+test_disabled_and_modular_values_do_not_satisfy_builtin_profile (test_check_config.ConfigValidationTests) ... ok
+test_empty_or_malformed_fragment_cannot_pass (test_check_config.ConfigValidationTests) ... ok
+test_inline_comments_are_accepted_but_do_not_become_values (test_check_config.ConfigValidationTests) ... ok
+test_lsm_name_must_match_a_whole_entry (test_check_config.ConfigValidationTests) ... ok
+test_missing_override_is_reported_even_when_bpf_is_present (test_check_config.ConfigValidationTests) ... ok
+test_valid_unrelated_kernel_metadata_is_accepted (test_check_config.ConfigValidationTests) ... ok
+test_annotated_tags_use_peeled_commit_regardless_of_order (test_update_kernel.ReleaseSelectionTests) ... ok
+test_excludes_new_series_prereleases_and_older_tags (test_update_kernel.ReleaseSelectionTests) ... ok
+test_invalid_commit_advertisement_is_rejected (test_update_kernel.ReleaseSelectionTests) ... ok
+test_missing_current_release_is_rejected (test_update_kernel.ReleaseSelectionTests) ... ok
+test_retagged_current_release_is_rejected (test_update_kernel.ReleaseSelectionTests) ... ok
+test_selects_numeric_latest_in_same_series (test_update_kernel.ReleaseSelectionTests) ... ok
+
+----------------------------------------------------------------------
+Ran 14 tests in 0.071s
+
+OK
+
+COMMAND: python3 scripts/build-llms.py --check
+EXIT_CODE: 0
+LLM documentation bundle is current.
+
+COMMAND: python3 scripts/check-links.py
+EXIT_CODE: 0
+Local Markdown file links passed.
+
+COMMAND: /tmp/wsl-ebpf-lint/actionlint -shellcheck /tmp/wsl-ebpf-lint/shellcheck-v0.11.0/shellcheck
+EXIT_CODE: 0
+
+COMMAND: /tmp/wsl-ebpf-lint/shellcheck-v0.11.0/shellcheck -x -P SCRIPTDIR scripts/build-release.sh scripts/configure-kernel.sh scripts/prepare-kernel.sh scripts/validate-repository.sh scripts/verify-runtime.sh
+EXIT_CODE: 0
+
+COMMAND: docker compose --env-file examples/.env.example -f examples/compose.yaml --profile demo config --quiet
+EXIT_CODE: 0
+
+COMMAND: pwsh -NoProfile -File tests/test_installer.ps1
+EXIT_CODE: 0
+Installer configuration merge tests passed.
+Installer authenticity policy and failure tests passed.
+Test-NativeArchitecture passed (ARM64 emulation, x86, unknown, missing, CIM failure).
+All requested options and BPF LSM activation are configured.
+Test-InstalledRuntimeDependencies passed (standalone layout and default fragment).
+Test-FailedInstallationRetry (copy) passed.
+Test-FailedInstallationRetry (config) passed.
+Test-ExistingInstallationPreserved passed.
+
+COMMAND: pwsh -NoProfile -File tests/test_installer_execution.ps1
+EXIT_CODE: 0
+Test-NativeArchitecture passed (ARM64 emulation, x86, unknown, missing, CIM failure).
+All requested options and BPF LSM activation are configured.
+Test-InstalledRuntimeDependencies passed (standalone layout and default fragment).
+Test-FailedInstallationRetry (copy) passed.
+Test-FailedInstallationRetry (config) passed.
+Test-ExistingInstallationPreserved passed.
+
+COMMAND: git diff --check
+EXIT_CODE: 0
+
+COMMAND: bash -n scripts/build-release.sh
+EXIT_CODE: 0
+
+COMMAND: bash -n scripts/configure-kernel.sh
+EXIT_CODE: 0
+
+COMMAND: bash -n scripts/prepare-kernel.sh
+EXIT_CODE: 0
+
+COMMAND: bash -n scripts/validate-repository.sh
+EXIT_CODE: 0
+
+COMMAND: bash -n scripts/verify-runtime.sh
+EXIT_CODE: 0
+
+CONFIG_COMPARISON: PASS (95 requested; 39 deltas: 5 disabled/absent, 33 modular, suffix)
+UPSTREAM_BLOB_IDENTITIES: PASS

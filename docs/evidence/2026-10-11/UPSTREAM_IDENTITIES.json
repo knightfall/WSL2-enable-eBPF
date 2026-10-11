@@ -1,0 +1,30 @@
+{
+  "review_date": "2026-10-11",
+  "repository_baseline": "40ce0af43f82550b1ec31061d32e73bd2b2d3ffd",
+  "local_build_snapshot": "a1ba8c34ce479f0fc9852636efb26d3869f7415d",
+  "config_snapshots": [
+    {
+      "version": "6.6.123.2",
+      "tag": "linux-msft-wsl-6.6.123.2",
+      "commit": "a07f9ea8a99139913acbcc1c160b132cb2a49c81",
+      "path": "arch/x86/configs/config-wsl",
+      "git_blob": "cc3d37e1d0c41c68a0faa79737b0dd3c7060b9ff",
+      "snapshot": "microsoft-6.6.123.2.config",
+      "source_url": "https://github.com/microsoft/WSL2-Linux-Kernel/blob/a07f9ea8a99139913acbcc1c160b132cb2a49c81/arch/x86/configs/config-wsl",
+      "contents_api": "https://api.github.com/repos/microsoft/WSL2-Linux-Kernel/contents/arch/x86/configs/config-wsl?ref=a07f9ea8a99139913acbcc1c160b132cb2a49c81",
+      "sha256": "c176f7fdb0f002226e7b7002efbc5c4732b6c336867b8aaddd7e7e88555e8388"
+    },
+    {
+      "version": "6.18.54.1",
+      "tag": "linux-msft-wsl-6.18.54.1",
+      "commit": "d504d40ab83839cb61942a812a99d183c42227b9",
+      "path": "arch/x86/configs/config-wsl",
+      "git_blob": "a10691770ef515a454c32f3f4704d37eac6554ad",
+      "snapshot": "microsoft-6.18.54.1.config",
+      "source_url": "https://github.com/microsoft/WSL2-Linux-Kernel/blob/d504d40ab83839cb61942a812a99d183c42227b9/arch/x86/configs/config-wsl",
+      "contents_api": "https://api.github.com/repos/microsoft/WSL2-Linux-Kernel/contents/arch/x86/configs/config-wsl?ref=d504d40ab83839cb61942a812a99d183c42227b9",
+      "sha256": "44e47698d8b66fee94bd63c90348bae400f88f90c6d33536a2a1dbb5859fcf6a"
+    }
+  ],
+  "origin_evidence": "GitHub contents API blob identities read at the immutable commits; not signed attestations"
+}

@@ -4,7 +4,9 @@
 > enforcement, and container networking, with validation and upstream update tooling.
 
 For OBI-only use, start with the README managed-kernel path; the custom profile
-and its validators also cover enforcement and networking workloads.
+and its validators also cover enforcement and networking workloads. Use the
+config reference for the dated upstream comparison and distinguish SK_MSG
+propagation from optional receive-side stream parsing.
 
 Read the agent guide and repository map first. Source code and the source lock
 are authoritative. Linux configuration validation, kernel compilation, WSL boot,
@@ -18,6 +20,12 @@ build artifacts, and local environment files from default indexing.
 - [Repository map](docs/REPOSITORY_MAP.md): file responsibilities, build/update flows, and investigation entry points.
 - [Setup guide](README.md): OBI-only managed-kernel checks, custom-profile prerequisites, pinned source initialization, build/install, rollback, and runtime/workload checks.
 - [Kernel option reference](KERNEL_CONFIG_EXPLAINED.md): requested kernel symbols, dependencies, and upstream references.
+
+- [Release acceptance](docs/RELEASE_ACCEPTANCE.md): full-build artifact inspection, Windows boot/module/rollback, and workload evidence.
+
+- [6.18.54.1 build evidence](docs/VALIDATION_6.18.54.1.md): dated local compilation/artifact results and remaining WSL acceptance.
+
+- [Factual assurance case](docs/ASSURANCE_CASE.md): claim/evidence argument, preserved records, snapshot hashes, and open acceptance obligations.
 
 ## Source and automation
 
