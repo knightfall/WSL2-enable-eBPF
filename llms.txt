@@ -28,6 +28,10 @@ build artifacts, and local environment files from default indexing.
 - [Scheduled updater](.github/workflows/update-kernel.yml): weekly/manual checks and validated update pull requests.
 - [OBI Compose example](examples/compose.yaml): Docker Engine inside WSL and an optional HTTP smoke workload.
 
+- [Release build](scripts/build-release.sh): compile and package binaries and source archives.
+- [Windows installer](scripts/Install-WslEbpfKernel.ps1): verified release downloads and backed-up configuration updates.
+- [Release workflow](.github/workflows/release.yml): version-tag builds and draft releases.
+
 ## Optional
 
 - [Complete documentation bundle](llms-full.txt): generated project docs in one file; use instead of indexing the same pages twice.

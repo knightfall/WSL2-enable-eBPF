@@ -99,7 +99,11 @@ The scheduled update workflow creates/refreshes
 It never merges automatically. Keep no-op discovery lightweight, preserve an
 identical pending commit, and retain the explicit force-with-lease check for
 changed managed branches. The repository's default workflow token remains
-read-only; only the update job requests contents and pull-request writes.
+read-only; the update job requests contents and pull-request writes, while the release draft
+job requests contents writes. Release builds request OIDC and attestation writes,
+keep contents read-only, and create drafts
+for Windows acceptance testing before publication. Preserve fail-closed verification
+of immutable assets and provenance against the fixed repository, workflow, and tag.
 
 The Compose example targets Docker Engine inside the WSL distro. Docker Desktop
 has a separate daemon environment; do not imply that a user-distro mount or PID
@@ -146,6 +150,9 @@ Git and Kconfig; Python validates configuration and chooses upstream release tag
 | `.gitmodules`, `WSL2-Linux-Kernel/` | Registered Microsoft kernel submodule; the gitlink is the build's source pin |
 | `kernel-version.env` | Human-readable release/commit lock checked against the gitlink |
 | `ebpf-kernel.config` | Requested built-in eBPF, tracing, network, storage, and enforcement options |
+| `scripts/build-release.sh` | Compile and package binaries, checksums, metadata, and exact source archives |
+| `scripts/Install-WslEbpfKernel.ps1` | Verify immutable assets and signed provenance for an explicit tag; back up and merge Windows settings |
+| `.github/workflows/release.yml` | Pinned Actions, version-tag build, provenance attestation, and draft release publication |
 | `scripts/prepare-kernel.sh` | Check lock/gitlink agreement and initialize the pinned submodule |
 | `scripts/configure-kernel.sh` | Back up `.config`, merge the fragment, preserve LSMs, resolve dependencies |
 | `scripts/check-config.py` | Fail on missing/changed options, invalid input, or absent BPF LSM activation |
@@ -179,8 +186,9 @@ Git submodule pin + source lock
   -> OBI / Tetragon / Cilium workload-specific smoke tests
 ```
 
-No checked-in script automatically installs Windows artifacts or edits
-`.wslconfig`; those operations are documented for the operator. Kernel support
+The PowerShell installer downloads published versioned artifacts and updates
+`.wslconfig` with a backup. The release workflow creates drafts for manual Windows
+acceptance testing before publication. Kernel support
 does not install the agents or prove a particular enforcement/networking policy.
 
 ## Upstream update flow
@@ -274,6 +282,111 @@ maintaining your installation. Update both entries in
 [kernel-version.env](kernel-version.env) and the submodule commit together, then
 repeat configuration, boot, and workload validation. Do not follow a moving upstream branch: different
 kernel series can change configuration symbols and module packaging scripts.
+
+## Install a prebuilt release
+
+Published [GitHub Releases](https://github.com/knightfall/WSL2-enable-eBPF/releases)
+provide an x86-64 `bzImage`, matching `modules.vhdx`, resolved configuration,
+SHA-256 checksums, build metadata, runtime verifier, exact source archives, and
+a portable Sigstore build-provenance bundle.
+A release is available only after a maintainer publishes its draft.
+
+Install [GitHub CLI](https://cli.github.com/) separately and authenticate using
+`gh auth login`. Use a current version supporting `release verify`,
+`release verify-asset`, and the attestation policy flags below. Download the
+installer and evidence with GitHub CLI. **Verify the installer before executing
+it**, using this PowerShell sequence and your actual published release tag:
+
+```powershell
+$tag = 'ebpf-v1.0.0'
+$repo = 'knightfall/WSL2-enable-eBPF'
+gh release download $tag --repo $repo --pattern Install-WslEbpfKernel.ps1 --pattern provenance.sigstore.json
+if ($LASTEXITCODE -ne 0) { throw 'Download failed' }
+gh release verify $tag --repo $repo
+if ($LASTEXITCODE -ne 0) { throw 'Release verification failed' }
+gh release verify-asset $tag ./Install-WslEbpfKernel.ps1 --repo $repo
+if ($LASTEXITCODE -ne 0) { throw 'Installer release verification failed' }
+gh attestation verify ./Install-WslEbpfKernel.ps1 --repo $repo --bundle ./provenance.sigstore.json --signer-workflow "$repo/.github/workflows/release.yml" --source-ref "refs/tags/$tag" --deny-self-hosted-runners
+if ($LASTEXITCODE -ne 0) { throw 'Installer provenance verification failed' }
+```
+
+Then inspect and run the verified installer:
+
+```powershell
+.\Install-WslEbpfKernel.ps1 -ReleaseTag ebpf-v1.0.0 -WhatIf
+.\Install-WslEbpfKernel.ps1 -ReleaseTag ebpf-v1.0.0
+```
+
+The installer uses GitHub CLI to download that explicit version, verifies release
+immutability, verifies the checksum manifest's signed build provenance, and checks
+each kernel, module image, release identifier, and verifier against both the
+release attestation and build provenance before checking `SHA256SUMS`. It installs into
+`%USERPROFILE%\wsl-kernel\<tag>`, and backs up `.wslconfig` before changing only
+`kernel` and `kernelModules` in `[wsl2]`. It preserves other settings, rejects
+duplicate sections and existing `lsm=` overrides, and refuses to overwrite an
+existing release directory. Verification pins the repository identity, `.github/workflows/release.yml`, and
+`refs/tags/<requested-tag>`, and rejects self-hosted-runner attestations. Any
+verification or download failure stops installation before configuration changes.
+There is no bypass switch. The evidence bundle is saved with the installed files.
+
+This establishes origin and integrity within the trusted GitHub Actions/Sigstore
+system, not absence of vulnerabilities or independent reproducibility. Public
+repository attestations have public transparency-log evidence; private repository
+attestations use GitHub's separate Sigstore instance without a public log. See
+[GitHub's trust model](https://docs.github.com/en/actions/concepts/security/artifact-attestations).
+The unsigned verification bundle is itself verified as an immutable release
+asset; its embedded signatures are validated against GitHub CLI's trusted roots.
+
+These settings apply to **all WSL2 distributions**. The installer does not stop
+running workloads. When ready, run `wsl --shutdown`, start WSL, and follow
+section 7 for mounts, BPF probes, and workload checks. The installer saves
+`kernel-release.txt` and `verify-runtime.sh` alongside the binaries; use the
+saved release identifier as the verifier's argument. Follow section 6 for
+access-denied troubleshooting and rollback. Custom kernels require manual updates.
+
+### Publish a release
+
+Before tagging, enable **Settings → General → Releases → Enable release
+immutability**. This affects future published releases; drafts remain editable.
+The installer requires immutable releases and rejects mutable ones. See
+[release immutability](https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases).
+GitHub artifact attestations require a public repository on Free/Pro/Team, or
+GitHub Enterprise Cloud for private repositories. Confirm eligibility before
+building a release; the workflow never silently falls back to checksums. See
+[attestation availability](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations).
+Restrict creation of `ebpf-v*` tags to maintainers with a repository ruleset.
+
+Commit the build tooling and reviewed source pin, then push a version tag such
+as `ebpf-v1.0.0`. [The release workflow](.github/workflows/release.yml) validates
+the repository, compiles the pinned kernel on Ubuntu 24.04, packages modules
+using Microsoft's script, attests every packaged object (including the installer, checksums, and source),
+and creates a **draft** release with the evidence bundle. The build job has
+`id-token: write` and `attestations: write`; only the draft job has
+`contents: write`. Release workflow Actions are pinned to immutable commits. The build timeout is three hours; large
+source archives and kernel builds may require a larger runner if hosted limits
+are reached. Use a fresh x86-64 Linux checkout for local packaging:
+
+```bash
+./scripts/build-release.sh
+```
+
+The `dist/` directory contains the assets. `kernel-source.tar.xz` contains the
+exact upstream tree and licenses; `build-source.tar.xz` contains this repository's
+committed tooling and fragment. Keep both available with the binaries. The build
+records the repository commit and upstream pin, but is not claimed bit-for-bit
+reproducible across toolchains.
+
+Before publishing the draft, test its exact binary assets on Windows: boot,
+module loading, runtime BPF probes, relevant workload smoke tests, and rollback.
+During draft acceptance, download assets with authenticated GitHub CLI and
+verify their build attestations with the policy above; immutable release
+verification becomes available at publication. Configure the test machine
+manually using sections 5–6, since the installer intentionally rejects drafts.
+Update the release notes with evidence, then publish through GitHub. Publication
+locks the assets and tag and creates GitHub's release attestation. Afterwards,
+verify the published installer and exercise its normal installation flow.
+Configuration validation and successful compilation alone do not prove WSL boot.
+No tag or release is created by a local build.
 
 ## 1. Check the environment and install prerequisites
 
