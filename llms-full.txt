@@ -299,7 +299,7 @@ installer and evidence with GitHub CLI. **Verify the installer before executing
 it**, using this PowerShell sequence and your actual published release tag:
 
 ```powershell
-$tag = 'ebpf-v1.0.0'
+$tag = 'ebpf-v6.18.54.1-r1'
 $repo = 'knightfall/WSL2-enable-eBPF'
 gh release download $tag --repo $repo --pattern Install-WslEbpfKernel.ps1 --pattern provenance.sigstore.json
 if ($LASTEXITCODE -ne 0) { throw 'Download failed' }
@@ -314,8 +314,8 @@ if ($LASTEXITCODE -ne 0) { throw 'Installer provenance verification failed' }
 Then inspect and run the verified installer:
 
 ```powershell
-.\Install-WslEbpfKernel.ps1 -ReleaseTag ebpf-v1.0.0 -WhatIf
-.\Install-WslEbpfKernel.ps1 -ReleaseTag ebpf-v1.0.0
+.\Install-WslEbpfKernel.ps1 -ReleaseTag ebpf-v6.18.54.1-r1 -WhatIf
+.\Install-WslEbpfKernel.ps1 -ReleaseTag ebpf-v6.18.54.1-r1
 ```
 
 The installer uses GitHub CLI to download that explicit version, verifies release
@@ -353,7 +353,7 @@ without cloning this repository:
 
 ```bash
 WIN_PROFILE=$(powershell.exe -NoProfile -Command '[Console]::Write($env:USERPROFILE)' | tr -d '\r\n')
-RELEASE_DIR="$(wslpath -u "$WIN_PROFILE")/wsl-kernel/ebpf-v1.0.0"
+RELEASE_DIR="$(wslpath -u "$WIN_PROFILE")/wsl-kernel/ebpf-v6.18.54.1-r1"
 sudo bash "$RELEASE_DIR/scripts/verify-runtime.sh" "$(cat "$RELEASE_DIR/kernel-release.txt")"
 ```
 
@@ -374,7 +374,7 @@ building a release; the workflow never silently falls back to checksums. See
 Restrict creation of `ebpf-v*` tags to maintainers with a repository ruleset.
 
 Commit the build tooling and reviewed source pin, then push a version tag such
-as `ebpf-v1.0.0`. [The release workflow](.github/workflows/release.yml) validates
+as `ebpf-v6.18.54.1-r1`. [The release workflow](.github/workflows/release.yml) validates
 the repository, compiles the pinned kernel on Ubuntu 24.04, packages modules
 using Microsoft's script, attests every packaged object (including the installer, checksums, and source),
 and creates a **draft** release with the evidence bundle. The build job has
@@ -487,8 +487,13 @@ make -j"${JOBS:-$(nproc)}" KCONFIG_CONFIG=.config
 make KCONFIG_CONFIG=.config INSTALL_MOD_PATH="$KERNEL_DIR/modules" modules_install
 make -s KCONFIG_CONFIG=.config kernelrelease > "$REPO_DIR/kernel-release.txt"
 
-sudo ./Microsoft/scripts/gen_modules_vhdx.sh \
+make KCONFIG_CONFIG=.config headers_install INSTALL_HDR_PATH="$KERNEL_DIR/headers"
+make -C tools/perf NO_JEVENTS=1 NO_JVMTI=1 NO_LIBTRACEEVENT=1 install DESTDIR="$KERNEL_DIR/perf" prefix=/
+
+sudo ./Microsoft/scripts/gen_artifacts_vhdx.sh \
   "$KERNEL_DIR/modules" \
+  "$KERNEL_DIR/headers" \
+  "$KERNEL_DIR/perf" \
   "$(cat "$REPO_DIR/kernel-release.txt")" \
   "$KERNEL_DIR/modules.vhdx"
 ```
@@ -496,7 +501,9 @@ sudo ./Microsoft/scripts/gen_modules_vhdx.sh \
 `make clean` preserves `.config`; `make mrproper` removes it. If you change the
 source pin, use a fresh source checkout and module staging directory so stale
 artifacts cannot be included. The packaging command above belongs to the pinned
-6.6 source series; check upstream instructions when changing kernel series.
+6.18 source series and includes modules, UAPI headers, and perf tooling; check
+upstream instructions when changing kernel series. Use a current WSL version
+supporting Microsoft's 6.18 artifact layout.
 
 ## 5. Copy artifacts and preserve a rollback path
 
@@ -683,7 +690,7 @@ not correct a namespace or filesystem mismatch.
 A custom `kernel=` setting bypasses Microsoft's managed kernel selection.
 Rebuild and repeat runtime and workload checks when updating the source pin.
 Cilium feature requirements vary by routing, encryption, and device mode; for
-example, the 6.6 baseline cannot supply features requiring kernel 6.8 or newer.
+example, verify each application's requirements against the pinned 6.18 configuration.
 
 ```bash
 python3 -m unittest discover -s tests -v
@@ -712,7 +719,7 @@ resolution, not a complete kernel build or WSL boot.
 [The upstream update workflow](.github/workflows/update-kernel.yml) runs weekly
 on Monday at 03:17 UTC and can be started manually from GitHub Actions. It checks
 Microsoft's stable release tags in the currently pinned kernel series (initially
-6.6), selects the newest version numerically, and updates both the submodule
+6.18), selects the newest version numerically, and updates both the submodule
 gitlink and `kernel-version.env`. New kernel series and prerelease tags are
 excluded; changing kernel series requires a separate compatibility review.
 
@@ -740,7 +747,7 @@ python3 scripts/update-kernel.py --check
 
 ## Upstream references
 
-- [Microsoft's 6.6 kernel build instructions](https://github.com/microsoft/WSL2-Linux-Kernel/blob/linux-msft-wsl-6.6.y/README.md)
+- [Microsoft's 6.18 kernel build instructions](https://github.com/microsoft/WSL2-Linux-Kernel/blob/linux-msft-wsl-6.18.y/README.md)
 - [WSL configuration, custom kernels, and fstab processing](https://learn.microsoft.com/en-us/windows/wsl/wsl-config)
 - [Tetragon runtime probes](https://tetragon.io/docs/installation/faq/)
 - [Tetragon BPF LSM activation](https://tetragon.io/docs/concepts/tracing-policy/hooks/)

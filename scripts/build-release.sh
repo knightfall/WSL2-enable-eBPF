@@ -7,8 +7,8 @@ source "$repo_dir/kernel-version.env"
 kernel_dir="$repo_dir/WSL2-Linux-Kernel"
 out="$repo_dir/dist"
 # Require fresh staging so previous modules cannot leak into a release.
-if [[ -e "$kernel_dir/modules" || -e "$out" ]]; then
-    printf 'Use a fresh checkout without dist/ or modules/ for release builds.\n' >&2
+if [[ -e "$kernel_dir/modules" || -e "$kernel_dir/headers" || -e "$kernel_dir/perf" || -e "$out" ]]; then
+    printf 'Use a fresh checkout without dist/, modules/, headers/, or perf/ for release builds.\n' >&2
     exit 1
 fi
 if ! git diff --quiet || ! git diff --cached --quiet; then
@@ -21,7 +21,9 @@ mkdir "$out"
 make -C "$kernel_dir" -j"${JOBS:-$(nproc)}" KCONFIG_CONFIG=.config
 make -C "$kernel_dir" KCONFIG_CONFIG=.config INSTALL_MOD_PATH="$kernel_dir/modules" modules_install
 release=$(make -s -C "$kernel_dir" KCONFIG_CONFIG=.config kernelrelease)
-sudo "$kernel_dir/Microsoft/scripts/gen_modules_vhdx.sh" "$kernel_dir/modules" "$release" "$out/modules.vhdx"
+make -C "$kernel_dir" KCONFIG_CONFIG=.config headers_install INSTALL_HDR_PATH="$kernel_dir/headers"
+make -C "$kernel_dir/tools/perf" -j"${JOBS:-$(nproc)}" NO_JEVENTS=1 NO_JVMTI=1 NO_LIBTRACEEVENT=1 install DESTDIR="$kernel_dir/perf" prefix=/
+sudo "$kernel_dir/Microsoft/scripts/gen_artifacts_vhdx.sh" "$kernel_dir/modules" "$kernel_dir/headers" "$kernel_dir/perf" "$release" "$out/modules.vhdx"
 sudo chown "$(id -u):$(id -g)" "$out/modules.vhdx"
 cp "$kernel_dir/arch/x86/boot/bzImage" "$out/bzImage"
 cp "$kernel_dir/.config" "$out/kernel.config"
