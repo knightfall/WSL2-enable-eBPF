@@ -1,7 +1,7 @@
 # WSL2 eBPF Kernel Configuration — Explained
 
 This document explains every option in `ebpf-kernel.config`, grouped by the same sections used in that file.
-Each entry covers **what it is**, **why it's needed**, and links to upstream documentation.
+Each entry covers **what it is**, **which workloads use it**, and links to upstream documentation.
 
 This is a requested kernel profile, not a list of features missing from stock
 WSL2 or mandatory for every workload. Most options are inherited from Microsoft's
@@ -10,6 +10,24 @@ the upstream LSM list; use `scripts/check-config.py` to validate the resolved
 configuration. The source baseline is recorded in `kernel-version.env`.
 
 ---
+
+## OBI-only use and the upstream baseline
+
+For OBI alone, begin with the managed Microsoft kernel and the
+[OBI-only setup path](README.md). Comparing Microsoft's 6.6.123.2 and 6.18.54.1
+base configs shows that BPF, kernel BTF, kprobe/uprobe events, perf events, and
+cgroup-BPF are already enabled. Both versions provide tc-BPF and ingress as
+modules. Modes using tc need those matching modules available; making them
+built-in is a packaging choice, not an OBI requirement.
+
+OBI requires exposed BTF and feature-specific privileges, as described in its
+[official support matrix](https://github.com/open-telemetry/opentelemetry-ebpf-instrumentation/blob/main/SUPPORT_MATRIX.md)
+and [capability guide](https://opentelemetry.io/docs/zero-code/obi/security/).
+The source comparison does not establish live OBI compatibility on a particular
+WSL installation. BPF LSM activation, kprobe return override, sockmap/LWT support,
+legacy iptables, TPROXY, and encryption support serve other workloads in this
+combined profile. The validator intentionally requires the whole profile and
+must not be used as an OBI-only compatibility check.
 
 ## Target workloads
 
@@ -33,7 +51,7 @@ Without it, virtually every network-using workload — and many BPF program type
 - [Kconfig: CONFIG_INET](https://cateee.net/lkddb/web-lkddb/INET.html)
 
 ### `CONFIG_IPV6`
-Enables the **IPv6 protocol stack**. Required by Cilium (dual-stack), OBI, and any workload that targets modern cloud networks.
+Enables the **IPv6 protocol stack**. Used by dual-stack networking workloads. Requirements depend on the address families and OBI features in use; this profile preserves IPv6 support.
 - [Kconfig: CONFIG_IPV6](https://cateee.net/lkddb/web-lkddb/IPV6.html)
 
 ### `CONFIG_NETDEVICES`
@@ -50,7 +68,7 @@ Provides the **kernel key-retention service** used by keyrings for TLS session k
 
 ---
 
-## 2 · BTF / CO-RE — required for Tetragon, OBI, Cilium
+## 2 · BTF / CO-RE — kernel BTF for observability, optional module coverage
 
 > **CO-RE** (Compile Once – Run Everywhere) lets a single pre-compiled eBPF binary adapt to any kernel version at load time by reading BTF type information embedded in the kernel image. This eliminates the need to ship a compiler with your eBPF tooling or to recompile code on every target machine.
 
@@ -72,7 +90,7 @@ This is the cornerstone of CO-RE: tools like `bpftool`, Tetragon, Cilium, and OB
 - [BTF Troubleshooting Guide](https://www.virtvps.com/btf-mastering-bpf-troubleshooting-unlocking/)
 
 ### `CONFIG_DEBUG_INFO_BTF_MODULES`
-Extends BTF coverage to **loadable kernel modules**. Tetragon and OBI hook into subsystems that may live in modules (e.g., `nf_conntrack`, `virtio`, filesystem drivers), so their BTF is needed for CO-RE relocation to work in those paths. Without this, BPF programs may fail to load or relocate on systems with kernel module dependencies.
+Extends BTF coverage to **loadable kernel modules**. Useful for BPF programs that depend on types or attachment targets in modules. This is not a blanket OBI prerequisite: its documented baseline requires exposed kernel BTF. Microsoft already enables module BTF in the compared configurations.
 - [Kernel docs: BTF](https://www.kernel.org/doc/html/latest/bpf/btf.html)
 - [BCC to libbpf conversion guide — Nakryiko](https://nakryiko.com/posts/bcc-to-libbpf-howto-guide/)
 
@@ -303,6 +321,14 @@ The **nftables framework** — the modern, set-based replacement for iptables. R
 The **inet (dual IPv4/IPv6) nftables family** — allows writing a single nftables ruleset that applies to both IP versions, which is how Docker and Cilium use it.
 - [nftables wiki](https://wiki.nftables.org/)
 
+### `CONFIG_NETFILTER_XTABLES_LEGACY`, `CONFIG_IP_NF_IPTABLES_LEGACY`, `CONFIG_IP6_NF_IPTABLES_LEGACY`
+Linux 6.18 separates legacy table evaluation from the xtables framework. This
+profile enables these parent dependencies so the requested filter, NAT, mangle,
+raw, CT, and TPROXY options can remain built-in. They support legacy networking
+modes and are not required by OBI instrumentation.
+- [Pinned IPv4 netfilter Kconfig](https://github.com/microsoft/WSL2-Linux-Kernel/blob/linux-msft-wsl-6.18.54.1/net/ipv4/netfilter/Kconfig)
+- [Pinned IPv6 netfilter Kconfig](https://github.com/microsoft/WSL2-Linux-Kernel/blob/linux-msft-wsl-6.18.54.1/net/ipv6/netfilter/Kconfig)
+
 ### `CONFIG_IP_NF_IPTABLES`
 The **iptables framework for IPv4** — the classic packet filter table architecture.
 - [iptables man page](https://man7.org/linux/man-pages/man8/iptables.8.html)
@@ -523,6 +549,9 @@ Validate the capability with `sudo tetra probe`, then test the actual policy.
 
 ## Quick reference — option → workload mapping
 
+Entries identify uses, not universal requirements or features missing upstream.
+OBI feature selection determines its exact hooks and privileges.
+
 | Config | Docker | Tetragon | Cilium | OBI | Envoy |
 |---|:---:|:---:|:---:|:---:|:---:|
 | `DEBUG_INFO_BTF` | | ✓ | ✓ | ✓ | |
@@ -531,7 +560,7 @@ Validate the capability with `sudo tetra probe`, then test the actual policy.
 | `BPF_STREAM_PARSER` | | | ✓ | | ✓ |
 | `KPROBES` / `KPROBE_EVENTS` | | ✓ | | ✓ | |
 | `UPROBES` / `UPROBE_EVENTS` | | | | ✓ | |
-| `NET_CLS_BPF` / `NET_SCH_INGRESS` | | | ✓ | | |
+| `NET_CLS_BPF` / `NET_SCH_INGRESS` | | | ✓ | Optional tc modes | |
 | `LWTUNNEL_BPF` | | | ✓ | | |
 | `NF_CONNTRACK` | ✓ | ✓ | ✓ | | |
 | `XT_TARGET_TPROXY` | | | | | ✓ |

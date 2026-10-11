@@ -3,6 +3,9 @@
 > A pinned x86-64 WSL2 kernel profile and build guide for eBPF observability,
 > enforcement, and container networking, with validation and upstream update tooling.
 
+For OBI-only use, start with the README managed-kernel path; the custom profile
+and its validators also cover enforcement and networking workloads.
+
 Read the agent guide and repository map first. Source code and the source lock
 are authoritative. Linux configuration validation, kernel compilation, WSL boot,
 and workload validation are separate checks. Relative links refer to this same
@@ -13,7 +16,7 @@ build artifacts, and local environment files from default indexing.
 
 - [Agent guide](AGENTS.md): editing rules, indexing boundaries, source/configuration invariants, and verification commands.
 - [Repository map](docs/REPOSITORY_MAP.md): file responsibilities, build/update flows, and investigation entry points.
-- [Setup guide](README.md): prerequisites, pinned source initialization, build/install, rollback, and runtime/workload checks.
+- [Setup guide](README.md): OBI-only managed-kernel checks, custom-profile prerequisites, pinned source initialization, build/install, rollback, and runtime/workload checks.
 - [Kernel option reference](KERNEL_CONFIG_EXPLAINED.md): requested kernel symbols, dependencies, and upstream references.
 
 ## Source and automation

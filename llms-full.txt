@@ -15,7 +15,11 @@ Use individual source pages or this bundle to avoid duplicate indexing. Regenera
 
 This repository builds and documents a custom x86-64 WSL2 kernel profile for
 eBPF observability and networking. It contains Bash/Python tooling, a kernel
-configuration fragment, Compose examples, and GitHub Actions workflows. It does
+configuration fragment, Compose examples, and GitHub Actions workflows. For OBI-only use, start with the managed Microsoft kernel: the compared
+6.6.123.2 and 6.18.54.1 base configs already enable its core BPF/BTF/tracing
+prerequisites. Keep source compatibility separate from live OBI validation. The
+full-profile validators require enforcement/networking features and must not be
+presented as OBI-only checks. It does
 not implement Linux, Tetragon, Cilium, Envoy, or OBI themselves.
 
 Start with [the repository map](docs/REPOSITORY_MAP.md) and [README.md](README.md).
@@ -172,7 +176,16 @@ Git and Kconfig; Python validates configuration and chooses upstream release tag
 The source directory may be uninitialized until `scripts/prepare-kernel.sh` runs.
 Do not treat its absence as an application source-code gap.
 
-## Build and verification flow
+## OBI-only flow
+
+The README provides a managed-kernel path: check the running version and exposed
+BTF, supply the selected OBI capabilities and example mounts, then run the OBI
+Compose smoke test on Docker Engine inside the target WSL distro. A custom
+kernel, BPF LSM activation, and the combined-profile validators are not baseline
+OBI prerequisites. Microsoft 6.6.123.2 and 6.18.54.1 source configs already supply
+core BPF/BTF/tracing support; runtime compatibility remains separately tested.
+
+## Custom kernel build and verification flow
 
 ```text
 Git submodule pin + source lock
@@ -214,6 +227,7 @@ remain separate acceptance checks.
 | Fresh clone cannot fetch/initialize the kernel | `.gitmodules`, source lock, `prepare-kernel.sh` |
 | An option disappears or becomes modular | Fragment, `check-config.py`, and the exact pinned upstream Kconfig dependency |
 | BPF LSM compiled but unavailable | `configure-kernel.sh`, active LSM list, Windows `lsm=` override |
+| OBI fails a custom-profile verifier | README OBI-only path; these validators require the whole custom profile |
 | OBI cannot observe another process/container | Compose capabilities, daemon host, host PID namespace, mount types |
 | Updater selects an unexpected release | `select_release` in `update-kernel.py` and `tests/test_update_kernel.py` |
 | CI fails | The failing workflow step, then the corresponding script; do not weaken checks to hide a dependency |
@@ -245,18 +259,25 @@ source pages when exact implementation behavior matters.
 
 ## Source: README.md
 
-# Enabling eBPF in WSL2 — Custom Kernel for Tetragon & OTel OBI
+# eBPF on WSL2 — OBI Setup and Custom Kernels for Enforcement
 
-Build a reproducible x86-64 WSL2 kernel profile for Docker Engine, Tetragon,
-Cilium, OpenTelemetry OBI, and transparent proxy workloads. Microsoft's kernel
-already enables much of the required eBPF functionality, including BTF and
-kprobes. First inspect your running kernel: a custom build is useful when you
-need missing features, such as Tetragon's kprobe return override, BPF LSM
-activation, or sockmap support.
+For **OpenTelemetry OBI alone**, start with Microsoft's managed WSL kernel.
+The compared Microsoft 6.6.123.2 and 6.18.54.1 source configurations already
+enable core BPF, BTF, kprobes, uprobes, perf events, and cgroup-BPF. Installing
+this custom kernel is usually unnecessary for OBI. Check the running kernel and
+selected OBI features using the OBI-only path below; the managed kernel installed
+on your machine may differ from the source versions compared here.
 
-The [configuration fragment](ebpf-kernel.config) pins this project's requested
-profile. [KERNEL_CONFIG_EXPLAINED.md](KERNEL_CONFIG_EXPLAINED.md) explains the
-options. Kernel support alone does not install or configure these applications.
+This repository also builds a reproducible x86-64 kernel profile for Tetragon
+policy enforcement, Cilium networking, Docker Engine, and transparent proxy
+workloads. It adds kprobe return override, activates BPF LSM, adds optional
+sockmap/LWT support, and makes selected networking features built-in. These
+changes serve the combined profile and are not an OBI prerequisite list.
+
+The [configuration fragment](ebpf-kernel.config) defines that combined profile.
+[KERNEL_CONFIG_EXPLAINED.md](KERNEL_CONFIG_EXPLAINED.md) explains which features
+are inherited, workload-specific, or optional. Kernel support alone does not
+install or configure the applications.
 
 For repository navigation and indexing, start with [AGENTS.md](AGENTS.md),
 [the repository map](docs/REPOSITORY_MAP.md), or [llms.txt](llms.txt). A generated
@@ -284,6 +305,68 @@ maintaining your installation. Update both entries in
 repeat configuration, boot, and workload validation. Do not follow a moving upstream branch: different
 kernel series can change configuration symbols and module packaging scripts.
 
+## OBI-only path: use the managed WSL kernel first
+
+OBI's documented baseline is Linux 5.8+ with exposed kernel BTF and the Linux
+capabilities required by the enabled features. See the official
+[OBI support matrix](https://github.com/open-telemetry/opentelemetry-ebpf-instrumentation/blob/main/SUPPORT_MATRIX.md),
+[capability guide](https://opentelemetry.io/docs/zero-code/obi/security/), and
+[context propagation requirements](https://opentelemetry.io/docs/zero-code/obi/distributed-traces/).
+Check the documentation matching the OBI release you deploy.
+
+| Feature | Microsoft 6.6.123.2 and 6.18.54.1 base configs | OBI-only implication |
+|---|---|---|
+| BPF syscall/JIT, BTF, kprobe/uprobe events, perf events, cgroup-BPF | Enabled built-in | No fragment change needed for these settings |
+| tc-BPF classifier and ingress qdisc | Available as modules | For modes that use them, ensure matching modules are present and loadable |
+| BPF LSM activation and kprobe return override | Combined profile adds activation/override support | Not required for OBI instrumentation |
+| Legacy netfilter, TPROXY, overlays, WireGuard/IPsec | Combined profile makes selected features built-in | Workload networking choices, not OBI instrumentation prerequisites |
+| Module BTF and embedded kernel headers | Additional tooling support | Not baseline OBI requirements; CO-RE relies on kernel BTF |
+
+Evidence: Microsoft's
+[6.6.123.2 base config](https://github.com/microsoft/WSL2-Linux-Kernel/blob/linux-msft-wsl-6.6.123.2/Microsoft/config-wsl)
+and [6.18.54.1 base config](https://github.com/microsoft/WSL2-Linux-Kernel/blob/linux-msft-wsl-6.18.54.1/Microsoft/config-wsl).
+At the 6.18.54.1 tag, `Microsoft/config-wsl` is byte-for-byte identical to
+[`arch/x86/configs/config-wsl`](https://github.com/microsoft/WSL2-Linux-Kernel/blob/linux-msft-wsl-6.18.54.1/arch/x86/configs/config-wsl).
+The build script uses the former path. This is a source comparison, not proof
+that OBI has been tested on stock WSL.
+
+Inside the distro hosting OBI and its target application, begin with:
+
+```bash
+uname -r
+test -r /sys/kernel/btf/vmlinux && echo 'Kernel BTF is readable'
+# If a working bpftool is installed:
+sudo bpftool feature probe kernel
+```
+
+For Docker Engine inside this distro, mount the filesystems used by the example:
+
+```bash
+mountpoint -q /sys/fs/bpf || sudo mount -t bpf bpffs /sys/fs/bpf
+mountpoint -q /sys/kernel/tracing || sudo mount -t tracefs tracefs /sys/kernel/tracing
+findmnt -T /sys/fs/cgroup # expected: cgroup2
+```
+
+Clone this repository to obtain the Compose example; kernel source initialization,
+compilation, the custom installer, and BPF LSM activation are unnecessary for this
+path. Set `REPO_DIR` to the clone directory and continue at **section 8**. Confirm
+OBI attaches and emits telemetry for your actual workload. For modes using tc,
+check matching modules with `sudo modprobe cls_bpf` and `sudo modprobe sch_ingress`.
+A missing module is a packaging or availability issue; it does not establish that
+OBI needs the entire combined profile. OBI must observe the Linux kernel and
+process namespaces hosting the target; see the Docker Desktop caveat in section 8.
+
+`scripts/check-config.py` and `scripts/verify-runtime.sh` validate the **combined
+custom profile**, including its version suffix and active BPF LSM. Their failures
+on a stock kernel are not an OBI compatibility diagnosis. Use OBI's capability
+checks and workload smoke tests for the OBI-only path.
+
+## Custom kernel path
+
+The remaining release, build, install, and profile-validation instructions apply
+when you need the combined custom profile. Skip them for OBI-only use unless a
+specific missing feature has been demonstrated on your running kernel.
+
 ## Install a prebuilt release
 
 Published [GitHub Releases](https://github.com/knightfall/WSL2-enable-eBPF/releases)
@@ -299,7 +382,7 @@ installer and evidence with GitHub CLI. **Verify the installer before executing
 it**, using this PowerShell sequence and your actual published release tag:
 
 ```powershell
-$tag = 'ebpf-v1.0.0'
+$tag = 'ebpf-v6.18.54.1-r1'
 $repo = 'knightfall/WSL2-enable-eBPF'
 gh release download $tag --repo $repo --pattern Install-WslEbpfKernel.ps1 --pattern provenance.sigstore.json
 if ($LASTEXITCODE -ne 0) { throw 'Download failed' }
@@ -314,8 +397,8 @@ if ($LASTEXITCODE -ne 0) { throw 'Installer provenance verification failed' }
 Then inspect and run the verified installer:
 
 ```powershell
-.\Install-WslEbpfKernel.ps1 -ReleaseTag ebpf-v1.0.0 -WhatIf
-.\Install-WslEbpfKernel.ps1 -ReleaseTag ebpf-v1.0.0
+.\Install-WslEbpfKernel.ps1 -ReleaseTag ebpf-v6.18.54.1-r1 -WhatIf
+.\Install-WslEbpfKernel.ps1 -ReleaseTag ebpf-v6.18.54.1-r1
 ```
 
 The installer uses GitHub CLI to download that explicit version, verifies release
@@ -353,7 +436,7 @@ without cloning this repository:
 
 ```bash
 WIN_PROFILE=$(powershell.exe -NoProfile -Command '[Console]::Write($env:USERPROFILE)' | tr -d '\r\n')
-RELEASE_DIR="$(wslpath -u "$WIN_PROFILE")/wsl-kernel/ebpf-v1.0.0"
+RELEASE_DIR="$(wslpath -u "$WIN_PROFILE")/wsl-kernel/ebpf-v6.18.54.1-r1"
 sudo bash "$RELEASE_DIR/scripts/verify-runtime.sh" "$(cat "$RELEASE_DIR/kernel-release.txt")"
 ```
 
@@ -374,7 +457,7 @@ building a release; the workflow never silently falls back to checksums. See
 Restrict creation of `ebpf-v*` tags to maintainers with a repository ruleset.
 
 Commit the build tooling and reviewed source pin, then push a version tag such
-as `ebpf-v1.0.0`. [The release workflow](.github/workflows/release.yml) validates
+as `ebpf-v6.18.54.1-r1`. [The release workflow](.github/workflows/release.yml) validates
 the repository, compiles the pinned kernel on Ubuntu 24.04, packages modules
 using Microsoft's script, attests every packaged object (including the installer, checksums, and source),
 and creates a **draft** release with the evidence bundle. The build job has
@@ -487,8 +570,13 @@ make -j"${JOBS:-$(nproc)}" KCONFIG_CONFIG=.config
 make KCONFIG_CONFIG=.config INSTALL_MOD_PATH="$KERNEL_DIR/modules" modules_install
 make -s KCONFIG_CONFIG=.config kernelrelease > "$REPO_DIR/kernel-release.txt"
 
-sudo ./Microsoft/scripts/gen_modules_vhdx.sh \
+make KCONFIG_CONFIG=.config headers_install INSTALL_HDR_PATH="$KERNEL_DIR/headers"
+make -C tools/perf NO_JEVENTS=1 NO_JVMTI=1 NO_LIBTRACEEVENT=1 install DESTDIR="$KERNEL_DIR/perf" prefix=/
+
+sudo ./Microsoft/scripts/gen_artifacts_vhdx.sh \
   "$KERNEL_DIR/modules" \
+  "$KERNEL_DIR/headers" \
+  "$KERNEL_DIR/perf" \
   "$(cat "$REPO_DIR/kernel-release.txt")" \
   "$KERNEL_DIR/modules.vhdx"
 ```
@@ -496,7 +584,9 @@ sudo ./Microsoft/scripts/gen_modules_vhdx.sh \
 `make clean` preserves `.config`; `make mrproper` removes it. If you change the
 source pin, use a fresh source checkout and module staging directory so stale
 artifacts cannot be included. The packaging command above belongs to the pinned
-6.6 source series; check upstream instructions when changing kernel series.
+6.18 source series and includes modules, UAPI headers, and perf tooling; check
+upstream instructions when changing kernel series. Use a current WSL version
+supporting Microsoft's 6.18 artifact layout.
 
 ## 5. Copy artifacts and preserve a rollback path
 
@@ -628,6 +718,10 @@ specific policy, application runtime, or Cilium networking mode works.
 
 ## 8. Run OBI with Docker Engine inside WSL
 
+This example can run on a suitable managed Microsoft kernel or the custom kernel.
+For OBI-only use, complete the OBI-only checks above; BPF LSM activation and the
+combined-profile verifier are not prerequisites.
+
 Use Docker Engine running in this distro and mount the host filesystems **before**
 starting the agent. Check `docker context show` and `docker info` to confirm which
 daemon the CLI uses. The agent needs the daemon host's PID namespace and
@@ -683,7 +777,7 @@ not correct a namespace or filesystem mismatch.
 A custom `kernel=` setting bypasses Microsoft's managed kernel selection.
 Rebuild and repeat runtime and workload checks when updating the source pin.
 Cilium feature requirements vary by routing, encryption, and device mode; for
-example, the 6.6 baseline cannot supply features requiring kernel 6.8 or newer.
+example, verify each application's requirements against the pinned 6.18 configuration.
 
 ```bash
 python3 -m unittest discover -s tests -v
@@ -712,7 +806,7 @@ resolution, not a complete kernel build or WSL boot.
 [The upstream update workflow](.github/workflows/update-kernel.yml) runs weekly
 on Monday at 03:17 UTC and can be started manually from GitHub Actions. It checks
 Microsoft's stable release tags in the currently pinned kernel series (initially
-6.6), selects the newest version numerically, and updates both the submodule
+6.18), selects the newest version numerically, and updates both the submodule
 gitlink and `kernel-version.env`. New kernel series and prerelease tags are
 excluded; changing kernel series requires a separate compatibility review.
 
@@ -740,7 +834,7 @@ python3 scripts/update-kernel.py --check
 
 ## Upstream references
 
-- [Microsoft's 6.6 kernel build instructions](https://github.com/microsoft/WSL2-Linux-Kernel/blob/linux-msft-wsl-6.6.y/README.md)
+- [Microsoft's 6.18 kernel build instructions](https://github.com/microsoft/WSL2-Linux-Kernel/blob/linux-msft-wsl-6.18.y/README.md)
 - [WSL configuration, custom kernels, and fstab processing](https://learn.microsoft.com/en-us/windows/wsl/wsl-config)
 - [Tetragon runtime probes](https://tetragon.io/docs/installation/faq/)
 - [Tetragon BPF LSM activation](https://tetragon.io/docs/concepts/tracing-policy/hooks/)
@@ -757,7 +851,7 @@ python3 scripts/update-kernel.py --check
 # WSL2 eBPF Kernel Configuration — Explained
 
 This document explains every option in `ebpf-kernel.config`, grouped by the same sections used in that file.
-Each entry covers **what it is**, **why it's needed**, and links to upstream documentation.
+Each entry covers **what it is**, **which workloads use it**, and links to upstream documentation.
 
 This is a requested kernel profile, not a list of features missing from stock
 WSL2 or mandatory for every workload. Most options are inherited from Microsoft's
@@ -766,6 +860,24 @@ the upstream LSM list; use `scripts/check-config.py` to validate the resolved
 configuration. The source baseline is recorded in `kernel-version.env`.
 
 ---
+
+## OBI-only use and the upstream baseline
+
+For OBI alone, begin with the managed Microsoft kernel and the
+[OBI-only setup path](README.md). Comparing Microsoft's 6.6.123.2 and 6.18.54.1
+base configs shows that BPF, kernel BTF, kprobe/uprobe events, perf events, and
+cgroup-BPF are already enabled. Both versions provide tc-BPF and ingress as
+modules. Modes using tc need those matching modules available; making them
+built-in is a packaging choice, not an OBI requirement.
+
+OBI requires exposed BTF and feature-specific privileges, as described in its
+[official support matrix](https://github.com/open-telemetry/opentelemetry-ebpf-instrumentation/blob/main/SUPPORT_MATRIX.md)
+and [capability guide](https://opentelemetry.io/docs/zero-code/obi/security/).
+The source comparison does not establish live OBI compatibility on a particular
+WSL installation. BPF LSM activation, kprobe return override, sockmap/LWT support,
+legacy iptables, TPROXY, and encryption support serve other workloads in this
+combined profile. The validator intentionally requires the whole profile and
+must not be used as an OBI-only compatibility check.
 
 ## Target workloads
 
@@ -789,7 +901,7 @@ Without it, virtually every network-using workload — and many BPF program type
 - [Kconfig: CONFIG_INET](https://cateee.net/lkddb/web-lkddb/INET.html)
 
 ### `CONFIG_IPV6`
-Enables the **IPv6 protocol stack**. Required by Cilium (dual-stack), OBI, and any workload that targets modern cloud networks.
+Enables the **IPv6 protocol stack**. Used by dual-stack networking workloads. Requirements depend on the address families and OBI features in use; this profile preserves IPv6 support.
 - [Kconfig: CONFIG_IPV6](https://cateee.net/lkddb/web-lkddb/IPV6.html)
 
 ### `CONFIG_NETDEVICES`
@@ -806,7 +918,7 @@ Provides the **kernel key-retention service** used by keyrings for TLS session k
 
 ---
 
-## 2 · BTF / CO-RE — required for Tetragon, OBI, Cilium
+## 2 · BTF / CO-RE — kernel BTF for observability, optional module coverage
 
 > **CO-RE** (Compile Once – Run Everywhere) lets a single pre-compiled eBPF binary adapt to any kernel version at load time by reading BTF type information embedded in the kernel image. This eliminates the need to ship a compiler with your eBPF tooling or to recompile code on every target machine.
 
@@ -828,7 +940,7 @@ This is the cornerstone of CO-RE: tools like `bpftool`, Tetragon, Cilium, and OB
 - [BTF Troubleshooting Guide](https://www.virtvps.com/btf-mastering-bpf-troubleshooting-unlocking/)
 
 ### `CONFIG_DEBUG_INFO_BTF_MODULES`
-Extends BTF coverage to **loadable kernel modules**. Tetragon and OBI hook into subsystems that may live in modules (e.g., `nf_conntrack`, `virtio`, filesystem drivers), so their BTF is needed for CO-RE relocation to work in those paths. Without this, BPF programs may fail to load or relocate on systems with kernel module dependencies.
+Extends BTF coverage to **loadable kernel modules**. Useful for BPF programs that depend on types or attachment targets in modules. This is not a blanket OBI prerequisite: its documented baseline requires exposed kernel BTF. Microsoft already enables module BTF in the compared configurations.
 - [Kernel docs: BTF](https://www.kernel.org/doc/html/latest/bpf/btf.html)
 - [BCC to libbpf conversion guide — Nakryiko](https://nakryiko.com/posts/bcc-to-libbpf-howto-guide/)
 
@@ -1059,6 +1171,14 @@ The **nftables framework** — the modern, set-based replacement for iptables. R
 The **inet (dual IPv4/IPv6) nftables family** — allows writing a single nftables ruleset that applies to both IP versions, which is how Docker and Cilium use it.
 - [nftables wiki](https://wiki.nftables.org/)
 
+### `CONFIG_NETFILTER_XTABLES_LEGACY`, `CONFIG_IP_NF_IPTABLES_LEGACY`, `CONFIG_IP6_NF_IPTABLES_LEGACY`
+Linux 6.18 separates legacy table evaluation from the xtables framework. This
+profile enables these parent dependencies so the requested filter, NAT, mangle,
+raw, CT, and TPROXY options can remain built-in. They support legacy networking
+modes and are not required by OBI instrumentation.
+- [Pinned IPv4 netfilter Kconfig](https://github.com/microsoft/WSL2-Linux-Kernel/blob/linux-msft-wsl-6.18.54.1/net/ipv4/netfilter/Kconfig)
+- [Pinned IPv6 netfilter Kconfig](https://github.com/microsoft/WSL2-Linux-Kernel/blob/linux-msft-wsl-6.18.54.1/net/ipv6/netfilter/Kconfig)
+
 ### `CONFIG_IP_NF_IPTABLES`
 The **iptables framework for IPv4** — the classic packet filter table architecture.
 - [iptables man page](https://man7.org/linux/man-pages/man8/iptables.8.html)
@@ -1279,6 +1399,9 @@ Validate the capability with `sudo tetra probe`, then test the actual policy.
 
 ## Quick reference — option → workload mapping
 
+Entries identify uses, not universal requirements or features missing upstream.
+OBI feature selection determines its exact hooks and privileges.
+
 | Config | Docker | Tetragon | Cilium | OBI | Envoy |
 |---|:---:|:---:|:---:|:---:|:---:|
 | `DEBUG_INFO_BTF` | | ✓ | ✓ | ✓ | |
@@ -1287,7 +1410,7 @@ Validate the capability with `sudo tetra probe`, then test the actual policy.
 | `BPF_STREAM_PARSER` | | | ✓ | | ✓ |
 | `KPROBES` / `KPROBE_EVENTS` | | ✓ | | ✓ | |
 | `UPROBES` / `UPROBE_EVENTS` | | | | ✓ | |
-| `NET_CLS_BPF` / `NET_SCH_INGRESS` | | | ✓ | | |
+| `NET_CLS_BPF` / `NET_SCH_INGRESS` | | | ✓ | Optional tc modes | |
 | `LWTUNNEL_BPF` | | | ✓ | | |
 | `NF_CONNTRACK` | ✓ | ✓ | ✓ | | |
 | `XT_TARGET_TPROXY` | | | | | ✓ |
