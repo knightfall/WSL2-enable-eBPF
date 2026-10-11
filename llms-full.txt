@@ -324,7 +324,11 @@ release attestation and build provenance before checking `SHA256SUMS`. It instal
 `%USERPROFILE%\wsl-kernel\<tag>`, and backs up `.wslconfig` before changing only
 `kernel` and `kernelModules` in `[wsl2]`. It preserves other settings, rejects
 duplicate sections and existing `lsm=` overrides, and refuses to overwrite an
-existing release directory. Verification pins the repository identity, `.github/workflows/release.yml`, and
+existing release directory. It checks the native processor architecture, so
+ARM64 hosts running emulated x64 PowerShell are rejected. If copying assets or
+writing configuration fails, it removes the release directory created by that
+attempt so the same version can be retried; existing installations are preserved.
+Verification pins the repository identity, `.github/workflows/release.yml`, and
 `refs/tags/<requested-tag>`, and rejects self-hosted-runner attestations. Any
 verification or download failure stops installation before configuration changes.
 There is no bypass switch. The evidence bundle is saved with the installed files.

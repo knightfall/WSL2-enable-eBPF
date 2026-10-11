@@ -60,3 +60,5 @@ foreach ($failure in @(1, 2)) {
 }
 Remove-Item function:gh
 Write-Output 'Installer authenticity policy and failure tests passed.'
+
+& (Join-Path $PSScriptRoot 'test_installer_execution.ps1')

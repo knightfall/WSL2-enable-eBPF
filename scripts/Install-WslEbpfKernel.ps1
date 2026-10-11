@@ -19,8 +19,11 @@ function Assert-ReleaseAsset {
         '--source-ref', "refs/tags/$ReleaseTag", '--deny-self-hosted-runners')
 }
 if ($env:OS -ne 'Windows_NT') { throw 'Run this installer on Windows.' }
-if ($env:PROCESSOR_ARCHITECTURE -ne 'AMD64' -and $env:PROCESSOR_ARCHITEW6432 -ne 'AMD64') {
-    throw 'Only x86-64 Windows is supported.'
+# Win32_Processor describes the platform, including when PowerShell is emulated.
+$architectures = @(Get-CimInstance -ClassName Win32_Processor -ErrorAction Stop |
+    Select-Object -ExpandProperty Architecture -Unique)
+if ($architectures.Count -ne 1 -or $architectures[0] -ne 9) {
+    throw 'Only native x86-64 Windows hosts are supported.'
 }
 Get-Command wsl.exe -ErrorAction Stop | Out-Null
 Get-Command gh -ErrorAction Stop | Out-Null
@@ -30,6 +33,8 @@ if (Test-Path $installDir) { throw "Installation directory already exists: $inst
 if (-not $PSCmdlet.ShouldProcess($configPath, "Install $ReleaseTag for all WSL2 distributions")) { return }
 $stage = Join-Path ([IO.Path]::GetTempPath()) ([guid]::NewGuid().ToString())
 New-Item -ItemType Directory -Path $stage | Out-Null
+$createdInstallDir = $false
+$configCommitted = $false
 try {
     Invoke-CheckedGh -Arguments @('release', 'verify', $ReleaseTag, '--repo', $Repository)
     Invoke-CheckedGh -Arguments @('release', 'download', $ReleaseTag, '--repo', $Repository, '--pattern', 'SHA256SUMS', '--dir', $stage)
@@ -77,6 +82,7 @@ try {
         Copy-Item $configPath $backup
     }
     New-Item -ItemType Directory -Path $installDir | Out-Null
+    $createdInstallDir = $true
     foreach ($name in @('bzImage', 'modules.vhdx', 'kernel-release.txt', 'verify-runtime.sh', 'SHA256SUMS', 'provenance.sigstore.json')) {
         Copy-Item (Join-Path $stage $name) (Join-Path $installDir $name)
     }
@@ -84,13 +90,20 @@ try {
     try {
         [IO.File]::WriteAllLines($tempConfig, $result, [Text.UTF8Encoding]::new($false))
         Move-Item $tempConfig $configPath -Force
+        $configCommitted = $true
     } finally {
-        if (Test-Path $tempConfig) { Remove-Item $tempConfig }
+        if (Test-Path $tempConfig) { Remove-Item $tempConfig -Force }
     }
     Write-Output "Installed $ReleaseTag in $installDir"
     if ($backup) { Write-Output "Rollback: restore $backup to $configPath" }
     else { Write-Output 'Rollback: remove kernel and kernelModules from [wsl2].' }
     Write-Output 'When ready, run wsl --shutdown, start WSL, and run the documented runtime checks.'
+} catch {
+    # Remove only this invocation's directory, and only before config points to it.
+    if ($createdInstallDir -and -not $configCommitted) {
+        Remove-Item $installDir -Recurse -Force -ErrorAction Continue
+    }
+    throw
 } finally {
     Remove-Item $stage -Recurse -Force
 }
