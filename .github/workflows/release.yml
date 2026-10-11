@@ -1,0 +1,75 @@
+name: Build kernel release
+
+on:
+  push:
+    tags: ['ebpf-v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential flex bison dwarves libssl-dev libelf-dev cpio qemu-utils rsync python3 xz-utils bc shellcheck
+      - name: Validate repository
+        run: scripts/validate-repository.sh
+      - name: Compile and package pinned kernel
+        run: scripts/build-release.sh
+      - name: Attest every packaged release asset
+        id: provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/*
+      - name: Include portable verification evidence
+        env:
+          BUNDLE_PATH: ${{ steps.provenance.outputs.bundle-path }}
+        run: cp "$BUNDLE_PATH" dist/provenance.sigstore.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: kernel-release
+          path: dist/*
+          compression-level: 0
+          retention-days: 7
+          if-no-files-found: error
+  draft:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: kernel-release
+          path: dist
+          digest-mismatch: error
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          cat > notes.md <<'EOF'
+          Prebuilt x86-64 WSL2 eBPF kernel and matching modules VHDX.
+
+          Verify release assets and build attestations before installation. Build inputs and exact kernel source are included.
+          This custom kernel applies globally to WSL2 distributions and requires manual updates.
+          Compilation and configuration checks passed; WSL boot and workload validation are still required before publication.
+          EOF
+          gh release create "$RELEASE_TAG" dist/* --verify-tag --draft --title "$RELEASE_TAG" --notes-file notes.md

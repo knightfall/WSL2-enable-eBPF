@@ -88,7 +88,11 @@ The scheduled update workflow creates/refreshes
 It never merges automatically. Keep no-op discovery lightweight, preserve an
 identical pending commit, and retain the explicit force-with-lease check for
 changed managed branches. The repository's default workflow token remains
-read-only; only the update job requests contents and pull-request writes.
+read-only; the update job requests contents and pull-request writes, while the release draft
+job requests contents writes. Release builds request OIDC and attestation writes,
+keep contents read-only, and create drafts
+for Windows acceptance testing before publication. Preserve fail-closed verification
+of immutable assets and provenance against the fixed repository, workflow, and tag.
 
 The Compose example targets Docker Engine inside the WSL distro. Docker Desktop
 has a separate daemon environment; do not imply that a user-distro mount or PID

@@ -18,6 +18,9 @@ Git and Kconfig; Python validates configuration and chooses upstream release tag
 | `.gitmodules`, `WSL2-Linux-Kernel/` | Registered Microsoft kernel submodule; the gitlink is the build's source pin |
 | `kernel-version.env` | Human-readable release/commit lock checked against the gitlink |
 | `ebpf-kernel.config` | Requested built-in eBPF, tracing, network, storage, and enforcement options |
+| `scripts/build-release.sh` | Compile and package binaries, checksums, metadata, and exact source archives |
+| `scripts/Install-WslEbpfKernel.ps1` | Verify immutable assets and signed provenance for an explicit tag; back up and merge Windows settings |
+| `.github/workflows/release.yml` | Pinned Actions, version-tag build, provenance attestation, and draft release publication |
 | `scripts/prepare-kernel.sh` | Check lock/gitlink agreement and initialize the pinned submodule |
 | `scripts/configure-kernel.sh` | Back up `.config`, merge the fragment, preserve LSMs, resolve dependencies |
 | `scripts/check-config.py` | Fail on missing/changed options, invalid input, or absent BPF LSM activation |
@@ -29,6 +32,7 @@ Git and Kconfig; Python validates configuration and chooses upstream release tag
 | `scripts/build-llms.py` | Generate or check the combined documentation bundle |
 | `tests/` | Standard-library Python tests for config parsing/requirements and release selection |
 | `examples/compose.yaml`, `examples/.env.example` | Versioned OBI agent and optional HTTP smoke target |
+| `.github/dependabot.yml` | Weekly grouped updates for SHA-pinned GitHub Actions |
 | `.github/workflows/validate.yml` | Repository checks and pinned-kernel Kconfig resolution on Linux |
 | `.github/workflows/update-kernel.yml` | Weekly/manual discovery, candidate validation, managed branch, update PR |
 | `llms.txt`, `llms-full.txt` | Curated navigation index and generated documentation bundle |
@@ -51,8 +55,9 @@ Git submodule pin + source lock
   -> OBI / Tetragon / Cilium workload-specific smoke tests
 ```
 
-No checked-in script automatically installs Windows artifacts or edits
-`.wslconfig`; those operations are documented for the operator. Kernel support
+The PowerShell installer downloads published versioned artifacts and updates
+`.wslconfig` with a backup. The release workflow creates drafts for manual Windows
+acceptance testing before publication. Kernel support
 does not install the agents or prove a particular enforcement/networking policy.
 
 ## Upstream update flow

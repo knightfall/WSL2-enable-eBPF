@@ -2,18 +2,25 @@ name: Validate kernel configuration
 
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: validate-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   configuration:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Install build and validation dependencies
         run: |
           sudo apt-get update
@@ -25,8 +32,20 @@ jobs:
       - name: Merge and resolve the x86-64 kernel configuration
         run: scripts/configure-kernel.sh
       - name: Keep resolved configuration for review
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: resolved-kernel-config
           path: WSL2-Linux-Kernel/.config
           include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+  installer:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check installer configuration preservation
+        shell: powershell
+        run: tests/test_installer.ps1
