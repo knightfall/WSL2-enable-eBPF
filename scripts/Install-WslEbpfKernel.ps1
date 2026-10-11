@@ -42,7 +42,7 @@ try {
     Invoke-CheckedGh -Arguments @('release', 'download', $ReleaseTag, '--repo', $Repository, '--pattern', 'provenance.sigstore.json', '--dir', $stage)
     Invoke-CheckedGh -Arguments @('release', 'verify-asset', $ReleaseTag, $bundle, '--repo', $Repository)
     Assert-ReleaseAsset -Path (Join-Path $stage 'SHA256SUMS') -Bundle $bundle
-    foreach ($name in @('bzImage', 'modules.vhdx', 'kernel-release.txt', 'verify-runtime.sh')) {
+    foreach ($name in @('bzImage', 'modules.vhdx', 'kernel-release.txt', 'verify-runtime.sh', 'check-config.py', 'ebpf-kernel.config')) {
         $matches = @(Get-Content (Join-Path $stage 'SHA256SUMS') | Where-Object { $_ -match "^[a-fA-F0-9]{64}  $([regex]::Escape($name))$" })
         if ($matches.Count -ne 1) { throw "Missing or ambiguous checksum for $name" }
         $expected = $matches[0].Substring(0, 64)
@@ -83,7 +83,11 @@ try {
     }
     New-Item -ItemType Directory -Path $installDir | Out-Null
     $createdInstallDir = $true
-    foreach ($name in @('bzImage', 'modules.vhdx', 'kernel-release.txt', 'verify-runtime.sh', 'SHA256SUMS', 'provenance.sigstore.json')) {
+    New-Item -ItemType Directory -Path (Join-Path $installDir 'scripts') | Out-Null
+    foreach ($name in @('verify-runtime.sh', 'check-config.py')) {
+        Copy-Item (Join-Path $stage $name) (Join-Path (Join-Path $installDir 'scripts') $name)
+    }
+    foreach ($name in @('bzImage', 'modules.vhdx', 'kernel-release.txt', 'ebpf-kernel.config', 'SHA256SUMS', 'provenance.sigstore.json')) {
         Copy-Item (Join-Path $stage $name) (Join-Path $installDir $name)
     }
     $tempConfig = "$configPath.$([guid]::NewGuid().ToString()).tmp"

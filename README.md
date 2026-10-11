@@ -98,8 +98,20 @@ asset; its embedded signatures are validated against GitHub CLI's trusted roots.
 These settings apply to **all WSL2 distributions**. The installer does not stop
 running workloads. When ready, run `wsl --shutdown`, start WSL, and follow
 section 7 for mounts, BPF probes, and workload checks. The installer saves
-`kernel-release.txt` and `verify-runtime.sh` alongside the binaries; use the
-saved release identifier as the verifier's argument. Follow section 6 for
+`kernel-release.txt` and `ebpf-kernel.config` alongside the binaries, and
+`scripts/verify-runtime.sh` plus `scripts/check-config.py` beneath the release
+directory. Both scripts and the fragment are authenticated before installation.
+After mounting the filesystems in section 7, use the installed verifier from WSL
+without cloning this repository:
+
+```bash
+WIN_PROFILE=$(powershell.exe -NoProfile -Command '[Console]::Write($env:USERPROFILE)' | tr -d '\r\n')
+RELEASE_DIR="$(wslpath -u "$WIN_PROFILE")/wsl-kernel/ebpf-v1.0.0"
+sudo bash "$RELEASE_DIR/scripts/verify-runtime.sh" "$(cat "$RELEASE_DIR/kernel-release.txt")"
+```
+
+Substitute your installed tag. The runtime prerequisites in section 7, including
+`python3` and a working `bpftool`, still apply. Follow section 6 for
 access-denied troubleshooting and rollback. Custom kernels require manual updates.
 
 ### Publish a release

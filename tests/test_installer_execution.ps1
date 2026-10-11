@@ -14,6 +14,16 @@ function Get-CimInstance {
     if ($null -ne $global:wslInstallerTestState.architecture) { [pscustomobject]@{ Architecture = $global:wslInstallerTestState.architecture } }
 }
 function wsl.exe { throw 'The installer must not restart WSL' }
+function Get-TestAssetBytes {
+    param([string]$Name)
+    if ($Name -in @('verify-runtime.sh', 'check-config.py')) {
+        return [IO.File]::ReadAllBytes((Join-Path $PSScriptRoot "../scripts/$Name"))
+    }
+    if ($Name -eq 'ebpf-kernel.config') {
+        return [IO.File]::ReadAllBytes((Join-Path $PSScriptRoot '../ebpf-kernel.config'))
+    }
+    return [Text.Encoding]::UTF8.GetBytes($Name)
+}
 function gh {
     $global:LASTEXITCODE = 0
     if ($args[0] -eq 'release' -and $args[1] -eq 'download') {
@@ -21,18 +31,19 @@ function gh {
         $name = $args[([array]::IndexOf($args, '--pattern') + 1)]
         $directory = $args[([array]::IndexOf($args, '--dir') + 1)]
         $global:wslInstallerTestState.stageDir = $directory
-        $content = $name
+        $bytes = Get-TestAssetBytes -Name $name
         if ($name -eq 'SHA256SUMS') {
             $content = ''
-            foreach ($asset in @('bzImage', 'modules.vhdx', 'kernel-release.txt', 'verify-runtime.sh')) {
+            foreach ($asset in @('bzImage', 'modules.vhdx', 'kernel-release.txt', 'verify-runtime.sh', 'check-config.py', 'ebpf-kernel.config')) {
                 $sha = [Security.Cryptography.SHA256]::Create()
-                try { $hash = $sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($asset)) }
+                try { $hash = $sha.ComputeHash([byte[]](Get-TestAssetBytes -Name $asset)) }
                 finally { $sha.Dispose() }
                 $digest = ([BitConverter]::ToString($hash)).Replace('-', '').ToLowerInvariant()
                 $content += "$digest  $asset`n"
             }
+            $bytes = [Text.Encoding]::UTF8.GetBytes($content)
         }
-        [IO.File]::WriteAllBytes((Join-Path $directory $name), [Text.Encoding]::UTF8.GetBytes($content))
+        [IO.File]::WriteAllBytes((Join-Path $directory $name), [byte[]]$bytes)
     }
 }
 function Copy-Item {
@@ -84,11 +95,38 @@ function Test-FailedInstallationRetry {
     if (@(Get-ChildItem $env:USERPROFILE -Filter '*.tmp' -Force).Count) { throw 'Temporary config survived failure' }
     $global:wslInstallerTestState.failure = ''
     & $installer -ReleaseTag ebpf-v1.0.0 | Out-Null
-    if (@(Get-ChildItem $directory -File).Count -ne 6) { throw 'Retry did not install all verified assets' }
+    if (@(Get-ChildItem $directory -File -Recurse).Count -ne 8) { throw 'Retry did not install all verified assets' }
     if (Test-Path $global:wslInstallerTestState.stageDir) { throw 'Download staging survived success' }
     $installedConfig = [IO.File]::ReadAllText($config)
     if ($installedConfig -notmatch 'memory=4GB' -or $installedConfig -notmatch 'kernelModules=') { throw 'Successful retry lost settings or kernel paths' }
+    if ($Failure -eq 'copy') { Test-InstalledRuntimeDependencies -Directory $directory }
     Write-Output "Test-FailedInstallationRetry ($Failure) passed."
+}
+function Test-InstalledRuntimeDependencies {
+    param([string]$Directory)
+    $checker = Join-Path $Directory 'scripts/check-config.py'
+    $verifier = Join-Path $Directory 'scripts/verify-runtime.sh'
+    $fragment = Join-Path $Directory 'ebpf-kernel.config'
+    foreach ($file in @($checker, $verifier, $fragment)) {
+        if (-not (Test-Path $file -PathType Leaf)) { throw "Missing installed runtime dependency: $file" }
+    }
+    $config = Join-Path $testRoot 'runtime.config'
+    $configText = [IO.File]::ReadAllText($fragment) + "`nCONFIG_LSM=`"landlock,bpf`"`n"
+    [IO.File]::WriteAllText($config, $configText)
+    & python3 $checker $config
+    if ($LASTEXITCODE -ne 0) { throw 'Installed checker cannot resolve its default fragment' }
+    [IO.File]::WriteAllText($config, $configText.Replace('CONFIG_BPF_SYSCALL=y', 'CONFIG_BPF_SYSCALL=n'))
+    $savedErrorAction = $ErrorActionPreference
+    try {
+        # Windows PowerShell 5.1 turns redirected native stderr into error records.
+        $ErrorActionPreference = 'Continue'
+        $diagnostic = & python3 $checker $config 2>&1
+        $checkerExitCode = $LASTEXITCODE
+    } finally { $ErrorActionPreference = $savedErrorAction }
+    if ($checkerExitCode -eq 0 -or ($diagnostic -join ' ') -notmatch 'CONFIG_BPF_SYSCALL') {
+        throw 'Installed checker failed to reject a disabled required feature'
+    }
+    Write-Output 'Test-InstalledRuntimeDependencies passed (standalone layout and default fragment).'
 }
 function Test-ExistingInstallationPreserved {
     $env:USERPROFILE = Join-Path $testRoot 'existing'

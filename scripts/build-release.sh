@@ -25,7 +25,7 @@ sudo "$kernel_dir/Microsoft/scripts/gen_modules_vhdx.sh" "$kernel_dir/modules" "
 sudo chown "$(id -u):$(id -g)" "$out/modules.vhdx"
 cp "$kernel_dir/arch/x86/boot/bzImage" "$out/bzImage"
 cp "$kernel_dir/.config" "$out/kernel.config"
-cp ebpf-kernel.config kernel-version.env scripts/verify-runtime.sh "$out/"
+cp ebpf-kernel.config kernel-version.env scripts/verify-runtime.sh scripts/check-config.py "$out/"
 printf '%s\n' "$release" > "$out/kernel-release.txt"
 printf 'repository_commit=%s\narchitecture=x86_64\n' "$(git rev-parse HEAD)" > "$out/build-info.txt"
 # Include the exact upstream source, licenses, and first-party build inputs.
@@ -33,4 +33,4 @@ git -C "$kernel_dir" archive --format=tar --prefix=WSL2-Linux-Kernel/ "$KERNEL_C
 git archive --format=tar --prefix=WSL2-enable-eBPF/ HEAD | xz -T2 > "$out/build-source.tar.xz"
 cp "$kernel_dir/COPYING" "$out/KERNEL-COPYING"
 cp scripts/Install-WslEbpfKernel.ps1 "$out/"
-(cd "$out" && sha256sum bzImage modules.vhdx kernel.config ebpf-kernel.config kernel-version.env verify-runtime.sh kernel-release.txt build-info.txt kernel-source.tar.xz build-source.tar.xz KERNEL-COPYING Install-WslEbpfKernel.ps1 > SHA256SUMS)
+(cd "$out" && sha256sum bzImage modules.vhdx kernel.config ebpf-kernel.config kernel-version.env verify-runtime.sh check-config.py kernel-release.txt build-info.txt kernel-source.tar.xz build-source.tar.xz KERNEL-COPYING Install-WslEbpfKernel.ps1 > SHA256SUMS)
