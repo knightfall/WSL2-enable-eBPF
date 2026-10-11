@@ -1,0 +1,4 @@
+# Preserve captured evidence bytes across platforms and checkout settings.
+docs/evidence/** -text
+# Terminal captures can legitimately contain CRs and trailing output spaces.
+docs/evidence/**/*.log whitespace=-trailing-space,-space-before-tab

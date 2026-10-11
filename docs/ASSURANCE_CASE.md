@@ -4,7 +4,7 @@
 
 **Status:** Source and local Linux build evidence established; release and WSL acceptance open.
 
-**Repository baseline:** `40ce0af43f82550b1ec31061d32e73bd2b2d3ffd` plus the uncommitted local changes described here.
+**Committed evidence checkpoint:** `27947582e2a44776e93e27e780facaf0d8f7c063`.
 
 This document records an evidence-supported argument for the repository's
 technical claims. It is not a mathematical proof, signed certification, or
@@ -26,11 +26,16 @@ behavior. ARM64 custom-kernel support is outside this profile.
 | Local build tooling snapshot | `a1ba8c34ce479f0fc9852636efb26d3869f7415d` | Temporary commit inside the disposable build container |
 | Linux build environment | AMD64 Ubuntu 24.04 emulated on ARM64 Docker; GCC 13.3.0, pahole 1.25, qemu-img 8.2.2 | Observed compilation/packaging environment |
 
-The temporary tooling commit is not a repository or GitHub commit. The built
-assets belong to that snapshot. Subsequent documentation and comment changes,
-including this evidence document and the config checker's docstring, are not
-contained in its source archive. Evidence of that build does not establish the
-identity of binaries produced by a later commit.
+The reviewed implementation and initial evidence package are committed at the
+checkpoint above. This wording update is a later documentation revision; its
+own commit is discoverable with `git log -- docs/ASSURANCE_CASE.md` rather than
+embedding a self-referencing commit hash.
+
+The build still belongs to the temporary container commit `a1ba8c3`, not to
+this repository checkpoint. Later documentation/comment changes, including the
+config checker's docstring, were not in that build-source archive. Committing
+reviewed information does not retroactively identify the historical binaries
+as a build of the repository checkpoint or establish a future release's identity.
 
 ## 2. Argument and supported conclusions
 
@@ -70,7 +75,7 @@ All preserved records are under [evidence/2026-10-11](evidence/2026-10-11/).
 
 | ID | Evidence | What it supports and limits |
 |---|---|---|
-| E1 | [Source lock](../kernel-version.env), [submodule declaration](../.gitmodules), Git gitlink, [upstream identities](evidence/2026-10-11/UPSTREAM_IDENTITIES.json) | Intended source identity; GitHub/TLS and Git object identity remain trust assumptions |
+| E1 | [Committed checkpoint record](evidence/2026-10-11/COMMITTED_CHECKPOINT.json), [Source lock](../kernel-version.env), [submodule declaration](../.gitmodules), Git gitlink, [upstream identities](evidence/2026-10-11/UPSTREAM_IDENTITIES.json) | Intended source identity; GitHub/TLS and Git object identity remain trust assumptions |
 | E2 | [6.6 target config](evidence/2026-10-11/microsoft-6.6.123.2.config), [6.18 target config](evidence/2026-10-11/microsoft-6.18.54.1.config) | Exact saved comparison inputs, verified against upstream config blob IDs |
 | E3 | [Explicit config comparison](evidence/2026-10-11/CONFIG_COMPARISON.tsv) | 95 assignments and their base/requested values; `n` represents disabled or absent. Not a full upstream-series diff or Kconfig-resolution result |
 | E4 | [OBI v0.14.0 support matrix](https://github.com/open-telemetry/opentelemetry-ebpf-instrumentation/blob/v0.14.0/SUPPORT_MATRIX.md), [context injector](https://github.com/open-telemetry/opentelemetry-ebpf-instrumentation/blob/v0.14.0/bpf/tpinjector/tpinjector.c) | Documented baseline and selected implementation paths; not a WSL execution result |
@@ -79,7 +84,7 @@ All preserved records are under [evidence/2026-10-11](evidence/2026-10-11/).
 | E7 | [Artifact checks](evidence/2026-10-11/artifact-checks.log), [kernel sections](evidence/2026-10-11/vmlinux-sections.txt), [sample-module sections](evidence/2026-10-11/sample-module-sections.log), [artifact manifest](evidence/2026-10-11/artifact-SHA256SUMS), [build metadata](evidence/2026-10-11/build-info.txt) | All 13 manifest hashes passed; BTF, boot header, extracted metadata/header/perf/module comparisons passed. Logs are observations, not signed attestations |
 | E8 | [Missing-depmod negative check](evidence/2026-10-11/missing-depmod.log), [build script](../scripts/build-release.sh), [build report](VALIDATION_6.18.54.1.md) | Fail-early dependency fix and populated metadata safeguards; a failed preflight is separate from Windows module loading |
 | E9 | [Independent claim ledger](evidence/2026-10-11/CLAIM_AUDIT.md) | 161 grouped review entries, including 92 option headings covering the fragment's 95 settings. Historical statuses and line numbers precede corrections; the resolution section records their disposition. Not an exhaustive proof of every atomic statement or future product version |
-| E10 | [Local check record](evidence/2026-10-11/local-checks.log) | Executed tests, lint, navigation and documentation checks, with exit codes; no live GitHub/Windows attestation verification |
+| E10 | [Local check record](evidence/2026-10-11/local-checks.log), [commit-wording checks](evidence/2026-10-11/commit-wording-checks.log) | Executed tests, lint, navigation and documentation checks, with exit codes; no live GitHub/Windows attestation verification |
 | E11 | [Installer](../scripts/Install-WslEbpfKernel.ps1), [release workflow](../.github/workflows/release.yml), [draft procedure](RELEASE_ACCEPTANCE.md), [GitHub attestation model](https://docs.github.com/en/actions/concepts/security/artifact-attestations), [immutable releases](https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases) | Verification contract and public trust model; authenticity must still be exercised on the exact eventual release |
 | E12 | [Release acceptance guide](RELEASE_ACCEPTANCE.md) | Concrete open acceptance procedure; instructions are not evidence of completion |
 
@@ -105,7 +110,9 @@ It does not independently authenticate the author or prove that a logged
 execution occurred.
 
 [REVIEWED_INPUTS_SHA256SUMS](evidence/2026-10-11/REVIEWED_INPUTS_SHA256SUMS)
-fingerprints the documentation and first-party inputs at this review boundary.
+fingerprints the covered documentation and first-party inputs of the documentation
+revision carrying this manifest. Verify their committed Git blob contents,
+which avoids differences introduced by checkout line-ending filters.
 It excludes this assurance document, the generated bundle, and the raw audit
 records to avoid a circular self-hash. If any covered input changes, repeat the
 relevant review before refreshing the recorded digest. A stale manifest must
@@ -115,13 +122,34 @@ From the repository root:
 
 ```bash
 (cd docs/evidence/2026-10-11 && sha256sum --check EVIDENCE_SHA256SUMS)
-sha256sum --check docs/evidence/2026-10-11/REVIEWED_INPUTS_SHA256SUMS
 python3 scripts/check-config.py docs/evidence/2026-10-11/resolved-kernel.config
 python3 scripts/build-llms.py --check
 python3 scripts/check-links.py
 ```
 
-On macOS, use `shasum -a 256 -c` in place of `sha256sum --check`.
+Verify the covered input manifest against the committed revision, without
+changing the checkout:
+
+```bash
+python3 - <<'PY_VERIFY'
+import hashlib
+import subprocess
+manifest = subprocess.check_output(
+    ['git', 'show', 'HEAD:docs/evidence/2026-10-11/REVIEWED_INPUTS_SHA256SUMS'],
+    text=True)
+for line in manifest.splitlines():
+    expected, name = line.split('  ', 1)
+    data = subprocess.check_output(['git', 'show', f'HEAD:{name}'])
+    assert hashlib.sha256(data).hexdigest() == expected, name
+print('Covered committed Git blobs match the review manifest.')
+PY_VERIFY
+```
+
+Run that check on the documentation revision carrying the manifest; using a
+later `HEAD` can correctly report changed inputs. On macOS, use
+`shasum -a 256 -c` in place of `sha256sum --check` for the evidence manifest.
+The evidence directory has `-text` Git attributes to preserve captured bytes;
+raw terminal-log whitespace is intentionally retained.
 The saved `artifact-SHA256SUMS` instead refers to the build's flat `dist/`
 assets. Those binaries and archives are not included in the documentation
 evidence directory; checking that manifest requires the actual matching assets.

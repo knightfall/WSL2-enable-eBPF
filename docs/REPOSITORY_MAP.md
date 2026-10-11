@@ -10,7 +10,7 @@ Git and Kconfig; Python validates configuration and chooses upstream release tag
 - [Installation and runtime guide](../README.md): the complete WSL setup and rollback flow.
 - [Kernel option explanations](../KERNEL_CONFIG_EXPLAINED.md): the requested profile and dependencies.
 - [Release acceptance](RELEASE_ACCEPTANCE.md): artifact, Windows/WSL, and workload validation evidence.
-- [6.18.54.1 build evidence](VALIDATION_6.18.54.1.md): dated Linux results and validation limits.
+- [6.18.54.1 build evidence](VALIDATION_6.18.54.1.md): dated Linux results, actual build identity, and committed evidence checkpoint.
 - [Factual assurance case](ASSURANCE_CASE.md): claims, preserved evidence, reproducible checks, and open obligations.
 - [Source lock](../kernel-version.env): current release tag, upstream URL, and immutable commit.
 

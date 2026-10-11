@@ -1,0 +1,15 @@
+Checks of the commit-based wording update, after evidence checkpoint 27947582e2a44776e93e27e780facaf0d8f7c063.
+
+COMMAND: python3 scripts/build-llms.py --check
+EXIT_CODE: 0
+LLM documentation bundle is current.
+
+COMMAND: python3 scripts/check-links.py
+EXIT_CODE: 0
+Local Markdown file links passed.
+
+COMMAND: git diff --check
+EXIT_CODE: 0
+
+COMMAND: git diff --check 2794758^
+EXIT_CODE: 0

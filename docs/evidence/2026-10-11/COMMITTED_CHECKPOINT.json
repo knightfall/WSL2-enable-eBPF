@@ -1,0 +1,7 @@
+{
+  "committed_evidence_checkpoint": "27947582e2a44776e93e27e780facaf0d8f7c063",
+  "historical_parent": "40ce0af43f82550b1ec31061d32e73bd2b2d3ffd",
+  "actual_local_build_snapshot": "a1ba8c34ce479f0fc9852636efb26d3869f7415d",
+  "documentation_revision": "The Git commit carrying this file and refreshed manifests; no self-referencing commit hash embedded.",
+  "distinction": "Repository checkpoint preserves reviewed information; it is not the input identity of the historical kernel build."
+}

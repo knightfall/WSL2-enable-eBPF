@@ -27,7 +27,9 @@ the default project index.
 
 The [factual assurance case](docs/ASSURANCE_CASE.md) records the source-backed
 claims, preserved audit/build evidence, snapshot identities, reproducible checks,
-and remaining release and runtime obligations. It defines the limits of the
+and remaining release and runtime obligations. The evidence checkpoint is
+committed as `2794758`; it is distinct from the temporary snapshot used for the
+recorded Linux build. The assurance case defines the limits of the
 verification status below.
 
 ## Scope and verification status

@@ -5,10 +5,13 @@ container emulated by Docker on an ARM64 host. GCC was 13.3.0, pahole 1.25,
 and qemu-img 8.2.2. The upstream source was
 `d504d40ab83839cb61942a812a99d183c42227b9` (`linux-msft-wsl-6.18.54.1`).
 
-The input was a temporary commit of the local review snapshot,
+The actual build input was the temporary container snapshot,
 `a1ba8c34ce479f0fc9852636efb26d3869f7415d`, inside the disposable container.
-It is not a GitHub commit or published release. Later documentation additions
-record the results; they are not included in that build-source archive.
+This is not a GitHub commit or published release. The reviewed implementation
+and evidence were subsequently committed to this repository at
+`27947582e2a44776e93e27e780facaf0d8f7c063`. That repository commit is the evidence checkpoint,
+not the identity of the historical build. Its later documentation additions
+were not in the temporary build-source archive.
 
 The [assurance case](ASSURANCE_CASE.md) links the preserved compilation,
 packaging, artifact-check, config, and digest records to these conclusions.
