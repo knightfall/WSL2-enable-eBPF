@@ -4,7 +4,11 @@
 
 This repository builds and documents a custom x86-64 WSL2 kernel profile for
 eBPF observability and networking. It contains Bash/Python tooling, a kernel
-configuration fragment, Compose examples, and GitHub Actions workflows. It does
+configuration fragment, Compose examples, and GitHub Actions workflows. For OBI-only use, start with the managed Microsoft kernel: the compared
+6.6.123.2 and 6.18.54.1 base configs already enable its core BPF/BTF/tracing
+prerequisites. Keep source compatibility separate from live OBI validation. The
+full-profile validators require enforcement/networking features and must not be
+presented as OBI-only checks. It does
 not implement Linux, Tetragon, Cilium, Envoy, or OBI themselves.
 
 Start with [the repository map](docs/REPOSITORY_MAP.md) and [README.md](README.md).

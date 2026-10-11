@@ -1,15 +1,22 @@
-# Enabling eBPF in WSL2 — Custom Kernel for Tetragon & OTel OBI
+# eBPF on WSL2 — OBI Setup and Custom Kernels for Enforcement
 
-Build a reproducible x86-64 WSL2 kernel profile for Docker Engine, Tetragon,
-Cilium, OpenTelemetry OBI, and transparent proxy workloads. Microsoft's kernel
-already enables much of the required eBPF functionality, including BTF and
-kprobes. First inspect your running kernel: a custom build is useful when you
-need missing features, such as Tetragon's kprobe return override, BPF LSM
-activation, or sockmap support.
+For **OpenTelemetry OBI alone**, start with Microsoft's managed WSL kernel.
+The compared Microsoft 6.6.123.2 and 6.18.54.1 source configurations already
+enable core BPF, BTF, kprobes, uprobes, perf events, and cgroup-BPF. Installing
+this custom kernel is usually unnecessary for OBI. Check the running kernel and
+selected OBI features using the OBI-only path below; the managed kernel installed
+on your machine may differ from the source versions compared here.
 
-The [configuration fragment](ebpf-kernel.config) pins this project's requested
-profile. [KERNEL_CONFIG_EXPLAINED.md](KERNEL_CONFIG_EXPLAINED.md) explains the
-options. Kernel support alone does not install or configure these applications.
+This repository also builds a reproducible x86-64 kernel profile for Tetragon
+policy enforcement, Cilium networking, Docker Engine, and transparent proxy
+workloads. It adds kprobe return override, activates BPF LSM, adds optional
+sockmap/LWT support, and makes selected networking features built-in. These
+changes serve the combined profile and are not an OBI prerequisite list.
+
+The [configuration fragment](ebpf-kernel.config) defines that combined profile.
+[KERNEL_CONFIG_EXPLAINED.md](KERNEL_CONFIG_EXPLAINED.md) explains which features
+are inherited, workload-specific, or optional. Kernel support alone does not
+install or configure the applications.
 
 For repository navigation and indexing, start with [AGENTS.md](AGENTS.md),
 [the repository map](docs/REPOSITORY_MAP.md), or [llms.txt](llms.txt). A generated
@@ -36,6 +43,68 @@ maintaining your installation. Update both entries in
 [kernel-version.env](kernel-version.env) and the submodule commit together, then
 repeat configuration, boot, and workload validation. Do not follow a moving upstream branch: different
 kernel series can change configuration symbols and module packaging scripts.
+
+## OBI-only path: use the managed WSL kernel first
+
+OBI's documented baseline is Linux 5.8+ with exposed kernel BTF and the Linux
+capabilities required by the enabled features. See the official
+[OBI support matrix](https://github.com/open-telemetry/opentelemetry-ebpf-instrumentation/blob/main/SUPPORT_MATRIX.md),
+[capability guide](https://opentelemetry.io/docs/zero-code/obi/security/), and
+[context propagation requirements](https://opentelemetry.io/docs/zero-code/obi/distributed-traces/).
+Check the documentation matching the OBI release you deploy.
+
+| Feature | Microsoft 6.6.123.2 and 6.18.54.1 base configs | OBI-only implication |
+|---|---|---|
+| BPF syscall/JIT, BTF, kprobe/uprobe events, perf events, cgroup-BPF | Enabled built-in | No fragment change needed for these settings |
+| tc-BPF classifier and ingress qdisc | Available as modules | For modes that use them, ensure matching modules are present and loadable |
+| BPF LSM activation and kprobe return override | Combined profile adds activation/override support | Not required for OBI instrumentation |
+| Legacy netfilter, TPROXY, overlays, WireGuard/IPsec | Combined profile makes selected features built-in | Workload networking choices, not OBI instrumentation prerequisites |
+| Module BTF and embedded kernel headers | Additional tooling support | Not baseline OBI requirements; CO-RE relies on kernel BTF |
+
+Evidence: Microsoft's
+[6.6.123.2 base config](https://github.com/microsoft/WSL2-Linux-Kernel/blob/linux-msft-wsl-6.6.123.2/Microsoft/config-wsl)
+and [6.18.54.1 base config](https://github.com/microsoft/WSL2-Linux-Kernel/blob/linux-msft-wsl-6.18.54.1/Microsoft/config-wsl).
+At the 6.18.54.1 tag, `Microsoft/config-wsl` is byte-for-byte identical to
+[`arch/x86/configs/config-wsl`](https://github.com/microsoft/WSL2-Linux-Kernel/blob/linux-msft-wsl-6.18.54.1/arch/x86/configs/config-wsl).
+The build script uses the former path. This is a source comparison, not proof
+that OBI has been tested on stock WSL.
+
+Inside the distro hosting OBI and its target application, begin with:
+
+```bash
+uname -r
+test -r /sys/kernel/btf/vmlinux && echo 'Kernel BTF is readable'
+# If a working bpftool is installed:
+sudo bpftool feature probe kernel
+```
+
+For Docker Engine inside this distro, mount the filesystems used by the example:
+
+```bash
+mountpoint -q /sys/fs/bpf || sudo mount -t bpf bpffs /sys/fs/bpf
+mountpoint -q /sys/kernel/tracing || sudo mount -t tracefs tracefs /sys/kernel/tracing
+findmnt -T /sys/fs/cgroup # expected: cgroup2
+```
+
+Clone this repository to obtain the Compose example; kernel source initialization,
+compilation, the custom installer, and BPF LSM activation are unnecessary for this
+path. Set `REPO_DIR` to the clone directory and continue at **section 8**. Confirm
+OBI attaches and emits telemetry for your actual workload. For modes using tc,
+check matching modules with `sudo modprobe cls_bpf` and `sudo modprobe sch_ingress`.
+A missing module is a packaging or availability issue; it does not establish that
+OBI needs the entire combined profile. OBI must observe the Linux kernel and
+process namespaces hosting the target; see the Docker Desktop caveat in section 8.
+
+`scripts/check-config.py` and `scripts/verify-runtime.sh` validate the **combined
+custom profile**, including its version suffix and active BPF LSM. Their failures
+on a stock kernel are not an OBI compatibility diagnosis. Use OBI's capability
+checks and workload smoke tests for the OBI-only path.
+
+## Custom kernel path
+
+The remaining release, build, install, and profile-validation instructions apply
+when you need the combined custom profile. Skip them for OBI-only use unless a
+specific missing feature has been demonstrated on your running kernel.
 
 ## Install a prebuilt release
 
@@ -387,6 +456,10 @@ policy against a disposable target. A successful kernel probe does not prove a
 specific policy, application runtime, or Cilium networking mode works.
 
 ## 8. Run OBI with Docker Engine inside WSL
+
+This example can run on a suitable managed Microsoft kernel or the custom kernel.
+For OBI-only use, complete the OBI-only checks above; BPF LSM activation and the
+combined-profile verifier are not prerequisites.
 
 Use Docker Engine running in this distro and mount the host filesystems **before**
 starting the agent. Check `docker context show` and `docker info` to confirm which

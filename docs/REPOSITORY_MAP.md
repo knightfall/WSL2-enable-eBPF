@@ -40,7 +40,16 @@ Git and Kconfig; Python validates configuration and chooses upstream release tag
 The source directory may be uninitialized until `scripts/prepare-kernel.sh` runs.
 Do not treat its absence as an application source-code gap.
 
-## Build and verification flow
+## OBI-only flow
+
+The README provides a managed-kernel path: check the running version and exposed
+BTF, supply the selected OBI capabilities and example mounts, then run the OBI
+Compose smoke test on Docker Engine inside the target WSL distro. A custom
+kernel, BPF LSM activation, and the combined-profile validators are not baseline
+OBI prerequisites. Microsoft 6.6.123.2 and 6.18.54.1 source configs already supply
+core BPF/BTF/tracing support; runtime compatibility remains separately tested.
+
+## Custom kernel build and verification flow
 
 ```text
 Git submodule pin + source lock
@@ -82,6 +91,7 @@ remain separate acceptance checks.
 | Fresh clone cannot fetch/initialize the kernel | `.gitmodules`, source lock, `prepare-kernel.sh` |
 | An option disappears or becomes modular | Fragment, `check-config.py`, and the exact pinned upstream Kconfig dependency |
 | BPF LSM compiled but unavailable | `configure-kernel.sh`, active LSM list, Windows `lsm=` override |
+| OBI fails a custom-profile verifier | README OBI-only path; these validators require the whole custom profile |
 | OBI cannot observe another process/container | Compose capabilities, daemon host, host PID namespace, mount types |
 | Updater selects an unexpected release | `select_release` in `update-kernel.py` and `tests/test_update_kernel.py` |
 | CI fails | The failing workflow step, then the corresponding script; do not weaken checks to hide a dependency |
