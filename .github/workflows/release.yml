@@ -23,6 +23,18 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Validate release version against source pin
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          source kernel-version.env
+          version=${KERNEL_TAG#linux-msft-wsl-}
+          prefix="ebpf-v${version}-r"
+          revision=${RELEASE_TAG#"$prefix"}
+          if [[ "$RELEASE_TAG" != "$prefix"* || ! "$revision" =~ ^[1-9][0-9]*$ ]]; then
+            echo "Release tag must be ${prefix}<positive revision>" >&2
+            exit 1
+          fi
       - name: Install dependencies
         run: |
           sudo apt-get update
